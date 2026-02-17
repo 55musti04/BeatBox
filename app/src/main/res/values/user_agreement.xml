@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="user_agreement_title">Kullanıcı Sözleşmesi</string>
+    <string name="user_agreement_content">
+        <![CDATA[
+        <h3>BeatBox Kullanıcı Sözleşmesi</h3>
+        <p><b>Son Güncelleme:</b> 2025</p>
+        
+        <h4>1. Genel Koşullar</h4>
+        <p>BeatBox uygulamasını kullanarak bu sözleşmeyi kabul etmiş sayılırsınız. Uygulama, cihazınızdaki müzik dosyalarını oynatmak için tasarlanmıştır.</p>
+        
+        <h4>2. Gizlilik ve Veri Kullanımı</h4>
+        <p>• BeatBox, cihazınızdaki müzik dosyalarına erişim izni gerektirir.</p>
+        <p>• Hiçbir kişisel veri veya müzik dosyası sunucularımıza gönderilmez.</p>
+        <p>• Tüm veriler cihazınızda yerel olarak saklanır.</p>
+        <p>• İnternet bağlantısı gerektirmez.</p>
+        
+        <h4>3. İzinler</h4>
+        <p>• <b>Müzik ve Ses Dosyaları:</b> Müzik kütüphanenize erişim için gereklidir.</p>
+        <p>• <b>Mikrofon (Visualizer):</b> Sadece ses görselleştirme için kullanılır, kayıt yapılmaz.</p>
+        <p>• <b>Bildirimler:</b> Müzik kontrolü için gereklidir.</p>
+        
+        <h4>4. Telif Hakları</h4>
+        <p>• Kullanıcılar, cihazlarındaki müzik dosyalarının yasal sahibi olmalıdır.</p>
+        <p>• BeatBox, telif hakkı ihlallerinden sorumlu değildir.</p>
+        <p>• Sadece yasal olarak sahip olduğunuz müzikleri dinleyin.</p>
+        
+        <h4>5. Sorumluluk Reddi</h4>
+        <p>• Uygulama "olduğu gibi" sunulmaktadır.</p>
+        <p>• Veri kaybı veya cihaz hasarından sorumlu değiliz.</p>
+        <p>• Uygulamayı kendi sorumluluğunuzda kullanırsınız.</p>
+        
+        <h4>6. Değişiklikler</h4>
+        <p>Bu sözleşme herhangi bir zamanda güncellenebilir. Güncellemeler uygulama içinde duyurulacaktır.</p>
+        
+        <h4>7. İletişim</h4>
+        <p>Sorularınız için: <b>dev.blackstackslabs@gmail.com</b></p>
+        
+        <p><i>BeatBox v2.5 - BlackStack Labs tarafından geliştirilmiştir.</i></p>
+        ]]>
+    </string>
+</resources>
