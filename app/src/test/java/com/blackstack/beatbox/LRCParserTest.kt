@@ -115,18 +115,15 @@ class LRCParserTest : StringSpec({
         lyrics.lines[1].timestampMs shouldBe 17700L
     }
     
-    "parse empty LRC returns empty lyrics" {
+    "parse empty LRC fails" {
         val lrcContent = ""
         
         val result = LRCParser.parse(lrcContent)
         
-        result.isSuccess shouldBe true
-        val lyrics = result.getOrNull().shouldNotBeNull()
-        
-        lyrics.lines.size shouldBe 0
+        result.isFailure shouldBe true
     }
     
-    "parse LRC with only metadata returns empty lines" {
+    "parse LRC with only metadata fails" {
         val lrcContent = """
             [ti:Test Song]
             [ar:Test Artist]
@@ -134,12 +131,7 @@ class LRCParserTest : StringSpec({
         
         val result = LRCParser.parse(lrcContent)
         
-        result.isSuccess shouldBe true
-        val lyrics = result.getOrNull().shouldNotBeNull()
-        
-        lyrics.metadata.title shouldBe "Test Song"
-        lyrics.metadata.artist shouldBe "Test Artist"
-        lyrics.lines.size shouldBe 0
+        result.isFailure shouldBe true
     }
     
     "format creates valid LRC string" {

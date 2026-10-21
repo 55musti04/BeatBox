@@ -1,7 +1,9 @@
 package com.blackstack.beatbox
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 
 /**
@@ -10,14 +12,13 @@ import kotlinx.coroutines.withContext
  * Checks sources in priority order:
  * 1. Local LRC file (same directory as audio file)
  * 2. Cache (Room database)
- * 3. Online API (LRCLIB)
+ * 3. Multiple Online APIs (LRCLIB, Lyrics.ovh, and more)
  * 
  * All operations are executed on Dispatchers.IO for background processing.
  */
 class LyricsProvider(
     private val context: Context,
-    private val lyricsCache: LyricsCacheDao,
-    private val lrcLibApi: LRCLIBApi
+    private val lyricsCache: LyricsCacheDao
 ) {
     /**
      * Retrieves lyrics for a song, checking sources in priority order
@@ -27,27 +28,46 @@ class LyricsProvider(
      */
     suspend fun getLyrics(audio: AudioFile): Result<SyncedLyrics> = withContext(Dispatchers.IO) {
         try {
+            android.util.Log.d("LyricsProvider", "=== Starting lyrics search for: ${audio.title} - ${audio.artist} ===")
+            
             // Priority 1: Check for local LRC file
+            android.util.Log.d("LyricsProvider", "Checking local LRC file...")
             checkLocalFile(audio)?.let { lyrics ->
+                android.util.Log.d("LyricsProvider", "✓ Found lyrics in local file")
                 return@withContext Result.success(lyrics)
             }
+            android.util.Log.d("LyricsProvider", "✗ No local LRC file found")
             
             // Priority 2: Check cache
+            android.util.Log.d("LyricsProvider", "Checking cache...")
             checkCache(audio.id)?.let { lyrics ->
+                android.util.Log.d("LyricsProvider", "✓ Found lyrics in cache")
                 return@withContext Result.success(lyrics)
+            }
+            android.util.Log.d("LyricsProvider", "✗ No cached lyrics found")
+
+            if (!context.hasUsableNetwork()) {
+                android.util.Log.w("LyricsProvider", "Lyrics API skipped because the device is offline")
+                return@withContext Result.failure(
+                    IllegalStateException("İnternet bağlantısı yok. Çevrimdışı sözler için yerel LRC dosyası veya önbellek kullanılabilir.")
+                )
             }
             
             // Priority 3: Fetch from API
+            android.util.Log.d("LyricsProvider", "Fetching from LRCLIB API...")
             fetchFromApi(audio)?.let { lyrics ->
+                android.util.Log.d("LyricsProvider", "✓ Found lyrics from API")
                 // Cache the fetched lyrics
                 cacheLyrics(audio.id, lyrics, "api")
                 return@withContext Result.success(lyrics)
             }
             
             // All sources failed
-            Result.failure(Exception("No lyrics found from any source"))
+            android.util.Log.e("LyricsProvider", "✗ No lyrics found from any source")
+            Result.failure(Exception("Şarkı sözü bulunamadı. Lütfen şarkı adı ve sanatçı bilgilerinin doğru olduğundan emin olun."))
         } catch (e: Exception) {
-            Result.failure(e)
+            android.util.Log.e("LyricsProvider", "Error in getLyrics", e)
+            Result.failure(Exception("Şarkı sözü yüklenirken hata oluştu: ${e.message}"))
         }
     }
     
@@ -59,7 +79,7 @@ class LyricsProvider(
      */
     private suspend fun checkLocalFile(audio: AudioFile): SyncedLyrics? {
         return try {
-            val lrcContent = LocalFileReader.readLrcFile(audio.uri) ?: return null
+            val lrcContent = LocalFileReader.readLrcFile(context, audio.uri) ?: return null
             val parseResult = LRCParser.parse(lrcContent)
             parseResult.getOrNull()
         } catch (e: Exception) {
@@ -84,25 +104,67 @@ class LyricsProvider(
     }
     
     /**
-     * Fetches lyrics from the LRCLIB API
+     * Fetches lyrics from multiple API providers with fallback
+     * Tries LRCLIB, Lyrics.ovh, and other providers
      * 
      * @param audio The audio file to fetch lyrics for
-     * @return SyncedLyrics if API fetch succeeds and response is valid, null otherwise
+     * @return SyncedLyrics if any API fetch succeeds, null otherwise
      */
     private suspend fun fetchFromApi(audio: AudioFile): SyncedLyrics? {
         return try {
-            val response = lrcLibApi.searchLyrics(
-                trackName = audio.title,
-                artistName = audio.artist,
-                duration = (audio.duration / 1000).toInt() // Convert ms to seconds
-            )
+            android.util.Log.d("LyricsProvider", "Fetching lyrics from multiple providers...")
             
-            // Prefer synced lyrics over plain lyrics
-            val lrcContent = response.syncedLyrics ?: return null
+            // Use multi-provider client with all variations
+            val result = withTimeoutOrNull(30_000L) {
+                MultiProviderLyricsClient.fetchWithVariations(
+                    originalTrack = audio.title,
+                    originalArtist = audio.artist,
+                    duration = audio.duration
+                )
+            }
+
+            if (result == null) {
+                android.util.Log.w("LyricsProvider", "Lyrics search timed out or returned no result")
+                return null
+            }
             
-            val parseResult = LRCParser.parse(lrcContent)
-            parseResult.getOrNull()
+            val (lyricsText, source) = result
+            android.util.Log.d("LyricsProvider", "✓ Found lyrics from $source")
+            
+            if (!lyricsText.isNullOrBlank()) {
+                // Try to parse as synced LRC format first
+                val parseResult = LRCParser.parse(lyricsText)
+                parseResult.getOrNull()?.let { 
+                    android.util.Log.d("LyricsProvider", "✓ Parsed as synced lyrics")
+                    return it 
+                }
+                
+                // If not LRC format, split plain text into lines for clean display
+                Log.d("LyricsProvider", "Using as plain text lyrics (unsynced)")
+                val rawLines = lyricsText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                val lines = if (rawLines.isNotEmpty()) {
+                    rawLines.mapIndexed { index, lineText ->
+                        SyncedLyricsLine(index * 3000L, lineText)
+                    }
+                } else {
+                    listOf(SyncedLyricsLine(0, lyricsText))
+                }
+
+                val lyrics = SyncedLyrics(
+                    lines = lines,
+                    metadata = LyricsMetadata(
+                        title = audio.title,
+                        artist = audio.artist,
+                        source = source
+                    )
+                )
+                return lyrics
+            }
+            
+            android.util.Log.d("LyricsProvider", "✗ No lyrics found from any provider")
+            null
         } catch (e: Exception) {
+            android.util.Log.e("LyricsProvider", "Error fetching from API", e)
             null
         }
     }

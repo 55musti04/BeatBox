@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.StrictMode
 import android.provider.MediaStore
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,9 +22,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.palette.graphics.Palette
+import android.graphics.Bitmap
+import android.util.Log
 import kotlinx.coroutines.*
 import kotlin.math.sqrt
 import kotlin.math.abs
@@ -52,7 +59,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     lateinit var prefs: SharedPreferences
     var sleepTimerMinutes by mutableIntStateOf(0)
     var sleepTimerSeconds by mutableIntStateOf(0)
-    var isSleepTimerRunning = false
+    @Volatile var isSleepTimerRunning = false
     private var fadeJob: Job? = null
     private var sleepTimerJob: Job? = null
     private lateinit var sensorManager: SensorManager
@@ -119,31 +126,56 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            val msg = throwable.message ?: ""
+            if (msg.contains("ACTION_HOVER_EXIT") || (msg.contains("MotionEvent") && msg.contains("hover"))) {
+                Log.e("UncaughtException", "Suppressed Compose hover exit framework bug", throwable)
+            } else {
+                defaultHandler?.uncaughtException(thread, throwable)
+            }
+        }
         
-        // Disable StrictMode for better performance (prevents ANR from disk/network operations)
-        try {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .permitDiskReads()
-                    .permitDiskWrites()
-                    .permitNetwork()
-                    .build()
-            )
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .build()
-            )
-        } catch (e: Exception) {
-            // Ignore if StrictMode configuration fails
+        // StrictMode: In debug builds, log VM leaks without hiding ANRs by permitting network on main thread
+        if (BuildConfig.DEBUG) {
+            try {
+                StrictMode.setVmPolicy(
+                    StrictMode.VmPolicy.Builder()
+                        .detectLeakedClosableObjects()
+                        .penaltyLog()
+                        .build()
+                )
+            } catch (e: Exception) {
+                // Ignore if StrictMode configuration fails
+            }
         }
         
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        
+        // Enable High Refresh Rate (90Hz / 120Hz)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+                val modes = currentDisplay?.supportedModes
+                val bestMode = modes?.maxByOrNull { it.refreshRate }
+                if (bestMode != null) {
+                    window.attributes = window.attributes.apply {
+                        preferredDisplayModeId = bestMode.modeId
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Failed to configure high refresh rate", e)
+        }
+
         prefs = getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE)
-        Intent(this, MediaPlaybackService::class.java).also {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(it) else startService(it)
-            bindService(it, serviceConnection, Context.BIND_AUTO_CREATE)
+        if (prefs.getBoolean("keep_screen_on", false)) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        Intent(this, MediaPlaybackService::class.java).also { intent ->
+            bindService(intent, serviceConnection, BIND_AUTO_CREATE)
         }
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sensor ->
@@ -156,24 +188,38 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         setContent { BeatBoxTheme() }
     }
 
+    fun setKeepScreenOn(enabled: Boolean) {
+        prefs.edit().putBoolean("keep_screen_on", enabled).apply()
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     private fun startSleepTimer() {
         sleepTimerJob?.cancel() // Cancel any existing timer
-        sleepTimerJob = lifecycleScope.launch(Dispatchers.Default) { // Use Default dispatcher instead of Main
+        sleepTimerJob = lifecycleScope.launch(Dispatchers.Default) {
             while (isActive) {
                 delay(1000) // 1 second interval
                 
-                // Only process if timer is running
-                if (isSleepTimerRunning && (sleepTimerMinutes > 0 || sleepTimerSeconds > 0)) {
-                    // Update timer values
-                    if (sleepTimerSeconds > 0) {
-                        sleepTimerSeconds--
-                    } else if (sleepTimerMinutes > 0) {
-                        sleepTimerMinutes--
-                        sleepTimerSeconds = 59
+                if (isSleepTimerRunning) {
+                    var timerFinished = false
+                    withContext(Dispatchers.Main) {
+                        if (sleepTimerMinutes > 0 || sleepTimerSeconds > 0) {
+                            if (sleepTimerSeconds > 0) {
+                                sleepTimerSeconds--
+                            } else if (sleepTimerMinutes > 0) {
+                                sleepTimerMinutes--
+                                sleepTimerSeconds = 59
+                            }
+                            if (sleepTimerMinutes <= 0 && sleepTimerSeconds <= 0) {
+                                timerFinished = true
+                            }
+                        }
                     }
                     
-                    // Check if timer reached zero
-                    if (sleepTimerMinutes <= 0 && sleepTimerSeconds <= 0) {
+                    if (timerFinished) {
                         fadeJob?.cancel()
                         fadeJob = launch(Dispatchers.Main) { // Fade on Main thread for UI updates
                             var v = 1f
@@ -226,34 +272,36 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         var visualizerLevel by remember { mutableFloatStateOf(0f) }
         var visualizerWaveform by remember { mutableStateOf(FloatArray(15) { 0f }) }
         
-        // Optimized polling for smooth animation without lag (100ms = 10 FPS)
-        // Use Dispatchers.Default to avoid blocking main thread
-        LaunchedEffect(Unit) {
-            withContext(Dispatchers.Default) { // ✅ Background thread
-                while (isActive) {
-                    try {
-                        val level = musicService?.getCurrentLevel() ?: 0f
-                        val waveform = musicService?.getCurrentWaveform() ?: FloatArray(15) { 0f }
-                        
-                        // Update state on main thread
-                        withContext(Dispatchers.Main) {
-                            visualizerLevel = level
-                            visualizerWaveform = waveform
+        // Optimized polling: Only polls when playing, saving CPU & eliminating background lag
+        LaunchedEffect(isPlaying.value) {
+            if (isPlaying.value) {
+                withContext(Dispatchers.Default) {
+                    while (isActive && isPlaying.value) {
+                        try {
+                            val level = musicService?.getCurrentLevel() ?: 0f
+                            val waveform = musicService?.getCurrentWaveform() ?: FloatArray(15) { 0f }
+                            withContext(Dispatchers.Main) {
+                                visualizerLevel = level
+                                visualizerWaveform = waveform
+                            }
+                        } catch (e: Exception) {
+                            // Ignore errors silently
                         }
-                    } catch (e: Exception) {
-                        // Ignore errors silently
+                        delay(120) // ~8 FPS, ultra smooth & zero lag
                     }
-                    delay(100) // Reduced from 60ms to 100ms for better battery life
                 }
+            } else {
+                visualizerLevel = 0f
+                visualizerWaveform = FloatArray(15) { 0f }
             }
         }
 
         var currentTheme by remember { 
             mutableStateOf(
                 try {
-                    AppTheme.valueOf(prefs.getString("app_theme", "DARK") ?: "DARK")
+                    AppTheme.valueOf(prefs.getString("app_theme", "DYNAMIC") ?: "DYNAMIC")
                 } catch (e: Exception) {
-                    AppTheme.DARK
+                    AppTheme.DYNAMIC
                 }
             )
         }
@@ -309,7 +357,43 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !currentTheme.isDark
             }
         }
-        MaterialTheme(colorScheme = getThemeColors(currentTheme)) {
+        val currAudio by currentAudio
+        var dynamicPrimary by remember { mutableStateOf(Color(0xFF00E5FF)) }
+
+        LaunchedEffect(currAudio?.id) {
+            val audio = currAudio
+            if (audio != null) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        AlbumArtCache.bitmapCache.get(audio.id)?.let { bmp ->
+                            val palette = androidx.palette.graphics.Palette.from(bmp).generate()
+                            val dom = palette.getDominantColor(android.graphics.Color.parseColor("#00E5FF"))
+                            withContext(Dispatchers.Main) {
+                                dynamicPrimary = Color(dom)
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        val baseScheme = getThemeColors(currentTheme)
+        val finalScheme = if (currentTheme == AppTheme.DYNAMIC) {
+            val safePrimary = adjustColorForContrast(dynamicPrimary)
+            val onPrimaryText = if (safePrimary.luminance() > 0.55f) Color.Black else Color.White
+            baseScheme.copy(
+                primary = safePrimary,
+                onPrimary = onPrimaryText,
+                primaryContainer = safePrimary.copy(alpha = 0.25f),
+                onPrimaryContainer = Color.White,
+                secondary = safePrimary.copy(alpha = 0.85f),
+                onSecondary = Color.White
+            )
+        } else {
+            baseScheme
+        }
+
+        MaterialTheme(colorScheme = finalScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 BeatBoxApp(this@MainActivity, currentTheme, s, lang, visualizerLevel, visualizerWaveform,
                     { currentTheme = it; prefs.edit().putString("app_theme", it.name).apply() },
@@ -318,15 +402,26 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    fun playAudio(audio: AudioFile) { musicService?.play(audio, prefs.getBoolean("crossfade_enabled", true)) }
+    fun playAudio(audio: AudioFile) { 
+        android.util.Log.d("MainActivity", "playAudio called for: ${audio.title}")
+        android.util.Log.d("MainActivity", "musicService is null: ${musicService == null}")
+        android.util.Log.d("MainActivity", "serviceBound: $serviceBound")
+        musicService?.play(audio, prefs.getBoolean("crossfade_enabled", true)) 
+    }
     fun pauseAudio(audio: AudioFile?) { musicService?.pause() }
     fun resumeAudio(audio: AudioFile?) { musicService?.resume() }
     fun seekTo(position: Int) { musicService?.seekTo(position) }
     fun getCurrentPosition(): Int = musicService?.getCurrentPosition() ?: 0
+    fun getDuration(): Int = musicService?.getDuration() ?: 0
     fun isPlaying(): Boolean = musicService?.isPlaying() == true
     fun setEQPreset(preset: EQPreset) { musicService?.applyPreset(preset) }
     fun getCurrentEQPreset(): EQPreset = musicService?.currentPreset ?: EQPreset.NONE
     fun setPlaybackSpeed(speed: Float) { musicService?.setSpeed(speed) }
+    fun loadOnlineTracks(): List<AudioFile> = OnlineAudioManager.loadOnlineTracks(this)
+    fun saveOnlineTrack(title: String, artist: String, url: String, artworkUrl: String?, durationMs: Long = 0L): AudioFile =
+        OnlineAudioManager.saveOnlineTrack(this, title, artist, url, artworkUrl, durationMs)
+    fun downloadTrack(audioFile: AudioFile, onResult: (Boolean, String) -> Unit): Unit =
+        run { OnlineAudioManager.downloadTrack(this, audioFile, lifecycleScope, onResult) }
     fun toggleFavorite(audioId: Long) {
         val favs = getFavorites().toMutableSet()
         if (favs.contains(audioId.toString())) favs.remove(audioId.toString()) else favs.add(audioId.toString())
@@ -340,12 +435,24 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     fun loadMinDurationSetting(): Int = prefs.getInt("min_duration", 30)
     fun savePlaylists(playlists: List<Playlist>) {
         try {
-            // Use a simple JSON-like format for better reliability
-            val playlistsJson = playlists.joinToString("|||") { playlist ->
-                val songIdsStr = playlist.songIds.joinToString(",")
-                "${playlist.id}::${playlist.name}::${playlist.isSmart}::$songIdsStr"
+            val jsonArray = org.json.JSONArray()
+            for (p in playlists) {
+                val obj = org.json.JSONObject()
+                obj.put("id", p.id)
+                obj.put("name", p.name)
+                obj.put("isSmart", p.isSmart)
+                obj.put("isArtistPlaylist", p.isArtistPlaylist)
+                if (p.artistName != null) {
+                    obj.put("artistName", p.artistName)
+                }
+                val songIdsArray = org.json.JSONArray()
+                for (id in p.songIds) {
+                    songIdsArray.put(id)
+                }
+                obj.put("songIds", songIdsArray)
+                jsonArray.put(obj)
             }
-            prefs.edit().putString("playlists_v2", playlistsJson).apply()
+            prefs.edit().putString("playlists_v3", jsonArray.toString()).apply()
         } catch (e: Exception) {
             android.util.Log.e("PlaylistSave", "Error saving playlists", e)
         }
@@ -353,6 +460,30 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     
     fun loadPlaylists(): List<Playlist> {
         return try {
+            val v3Str = prefs.getString("playlists_v3", null)
+            if (!v3Str.isNullOrEmpty()) {
+                val jsonArray = org.json.JSONArray(v3Str)
+                val list = mutableListOf<Playlist>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val id = obj.optString("id", java.util.UUID.randomUUID().toString())
+                    val name = obj.optString("name", "")
+                    val isSmart = obj.optBoolean("isSmart", false)
+                    val isArtistPlaylist = obj.optBoolean("isArtistPlaylist", false)
+                    val artistName = if (obj.has("artistName")) obj.optString("artistName").ifBlank { null } else null
+                    val songIdsArray = obj.optJSONArray("songIds")
+                    val songIds = mutableListOf<Long>()
+                    if (songIdsArray != null) {
+                        for (j in 0 until songIdsArray.length()) {
+                            songIds.add(songIdsArray.getLong(j))
+                        }
+                    }
+                    list.add(Playlist(name, id, songIds, isSmart, isArtistPlaylist, artistName))
+                }
+                return list
+            }
+
+            // Fallback to legacy playlists_v2 delimiter format
             val playlistsStr = prefs.getString("playlists_v2", "") ?: ""
             if (playlistsStr.isEmpty()) return emptyList()
             
@@ -370,7 +501,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                                 idStr.toLongOrNull()
                             }.toMutableList()
                         }
-                        Playlist(name, id, songIds, isSmart)
+                        val isArtistPlaylist = parts.getOrNull(4)?.toBooleanStrictOrNull() ?: false
+                        val artistName = parts.getOrNull(5)?.ifBlank { null }
+                        Playlist(name, id, songIds, isSmart, isArtistPlaylist, artistName)
                     } else {
                         android.util.Log.w("PlaylistLoad", "Invalid playlist format: $playlistStr")
                         null
@@ -395,6 +528,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         super.onResume()
         // Resume visualizer when app comes to foreground
         musicService?.resumeVisualizer()
+        
+        if (prefs.getBoolean("keep_screen_on", false)) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
     
     @Deprecated("Deprecated in Java")
@@ -423,6 +562,15 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             }
         }
     }
+
+    private fun adjustColorForContrast(color: Color): Color {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+        if (hsv[1] < 0.45f) hsv[1] = 0.65f
+        if (hsv[2] < 0.65f) hsv[2] = 0.85f
+        if (hsv[2] > 0.95f) hsv[2] = 0.95f
+        return Color(android.graphics.Color.HSVToColor(hsv))
+    }
     
     override fun onDestroy() {
         super.onDestroy()
@@ -447,4 +595,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             e.printStackTrace()
         }
     }
+}
+
+fun Bitmap.extractThemeColor(): Color {
+    val palette = Palette.from(this).generate()
+    val dominant = palette.getVibrantColor(palette.getDominantColor(android.graphics.Color.DKGRAY))
+    return Color(dominant)
 }

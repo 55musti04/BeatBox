@@ -19,7 +19,7 @@ import android.content.Context
  */
 data class SyncedLyricsLine(
     val timestampMs: Long,
-    val text: String
+    val text: String,
 )
 
 /**
@@ -30,7 +30,7 @@ data class SyncedLyricsLine(
  */
 data class SyncedLyrics(
     val lines: List<SyncedLyricsLine>,
-    val metadata: LyricsMetadata = LyricsMetadata()
+    val metadata: LyricsMetadata = LyricsMetadata(),
 )
 
 /**
@@ -41,13 +41,15 @@ data class SyncedLyrics(
  * @property album Album name from [al:] tag
  * @property by Creator/author from [by:] tag
  * @property offset Timing offset in milliseconds from [offset:] tag
+ * @property source Source of the lyrics (e.g., "LRCLIB", "Lyrics.ovh", "local", "cache")
  */
 data class LyricsMetadata(
     val title: String? = null,
     val artist: String? = null,
     val album: String? = null,
     val by: String? = null,
-    val offset: Long = 0L
+    val offset: Long = 0L,
+    val source: String? = null,
 )
 
 /**
@@ -63,7 +65,7 @@ data class CachedLyrics(
     @PrimaryKey val songId: Long,
     val lrcContent: String,
     val source: String,
-    val fetchedAt: Long
+    val fetchedAt: Long,
 )
 
 /**

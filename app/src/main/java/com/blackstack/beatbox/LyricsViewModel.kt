@@ -2,10 +2,13 @@ package com.blackstack.beatbox
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for managing lyrics state and playback synchronization
@@ -19,6 +22,7 @@ class LyricsViewModel(
     
     private val _currentLineIndex = MutableStateFlow(0)
     val currentLineIndex: StateFlow<Int> = _currentLineIndex.asStateFlow()
+    private var loadJob: Job? = null
     
     /**
      * Loads lyrics for the specified audio file
@@ -26,11 +30,19 @@ class LyricsViewModel(
      * @param audio The audio file to load lyrics for
      */
     fun loadLyrics(audio: AudioFile) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _lyricsState.value = LyricsState.Loading
             lyricsProvider.getLyrics(audio).fold(
                 onSuccess = { lyrics ->
-                    _lyricsState.value = LyricsState.Success(lyrics)
+                    // Add intro line if first line starts after 1 second (to show something during intro)
+                    val modifiedLyrics = if (lyrics.lines.isNotEmpty() && lyrics.lines.first().timestampMs > 1000) {
+                        val introLine = SyncedLyricsLine(0, "♪ ♪ ♪")
+                        lyrics.copy(lines = listOf(introLine) + lyrics.lines)
+                    } else {
+                        lyrics
+                    }
+                    _lyricsState.value = LyricsState.Success(modifiedLyrics)
                 },
                 onFailure = { error ->
                     _lyricsState.value = LyricsState.Error(error.message ?: "Unknown error")
@@ -39,6 +51,48 @@ class LyricsViewModel(
         }
     }
     
+    /**
+     * Allows searching for lyrics manually with custom track/artist search query
+     */
+    fun searchLyricsManually(trackName: String, artistName: String) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _lyricsState.value = LyricsState.Loading
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    MultiProviderLyricsClient.fetchLyricsFromAllProviders(
+                        trackName = trackName,
+                        artistName = artistName,
+                        duration = 0,
+                        skipCache = true
+                    )
+                }
+                if (result != null && !result.first.isNullOrBlank()) {
+                    val lyricsText = result.first!!
+                    val source = result.second
+                    val parseResult = LRCParser.parse(lyricsText)
+                    val lyrics = parseResult.getOrNull() ?: run {
+                        val rawLines = lyricsText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                        val lines = if (rawLines.isNotEmpty()) {
+                            rawLines.mapIndexed { index, lineText -> SyncedLyricsLine(index * 3000L, lineText) }
+                        } else {
+                            listOf(SyncedLyricsLine(0, lyricsText))
+                        }
+                        SyncedLyrics(
+                            lines = lines,
+                            metadata = LyricsMetadata(title = trackName, artist = artistName, source = source)
+                        )
+                    }
+                    _lyricsState.value = LyricsState.Success(lyrics)
+                } else {
+                    _lyricsState.value = LyricsState.Error("'$trackName - $artistName' için söz bulunamadı.")
+                }
+            } catch (e: Exception) {
+                _lyricsState.value = LyricsState.Error(e.message ?: "Arama hatası")
+            }
+        }
+    }
+
     /**
      * Updates the current playback position and finds the corresponding lyrics line
      * 

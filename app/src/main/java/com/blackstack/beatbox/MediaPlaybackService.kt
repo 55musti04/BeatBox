@@ -14,7 +14,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.media.AudioAttributes
+import android.media.MediaMetadataRetriever
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -33,13 +36,16 @@ import android.provider.MediaStore
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
 import android.util.LruCache
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.media.session.MediaButtonReceiver
 import kotlinx.coroutines.*
 
-// Optimize bitmap cache size to prevent OutOfMemoryError
-val bitmapCache = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 1024 / 32).toInt()) {
-    override fun sizeOf(key: Long, bitmap: Bitmap): Int = bitmap.byteCount / 1024
+// Optimize bitmap cache size to prevent OutOfMemoryError (shared across app)
+val bitmapCache = object : LruCache<Long, Bitmap>((Runtime.getRuntime().maxMemory() / 1024 / 16).toInt()) {
+    override fun sizeOf(key: Long, bitmap: Bitmap): Int = (bitmap.byteCount / 1024).coerceAtLeast(1)
 }
 
 
@@ -83,6 +89,13 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     fun getCurrentWaveform(): FloatArray = currentWaveform.copyOf()
     
     var currentPreset: EQPreset = EQPreset.NONE
+    
+    // Notification action states
+    var isRepeatEnabled: Boolean = false
+    var isShuffleEnabled: Boolean = false
+    var isFavorite: Boolean = false
+    var currentSpeedIndex: Int = 2 // 0=0.5x, 1=0.75x, 2=1x, 3=1.25x, 4=1.5x, 5=2x
+    var currentEQIndex: Int = 0 // 0=NONE, 1=BASS_BOOST, 2=VOCAL, 3=TREBLE, 4=LOUDNESS
 
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -115,13 +128,23 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
 
         mediaSession = MediaSessionCompat(this, "BeatBox").apply {
             setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS)
+            val mediaButtonIntent = Intent(Intent.ACTION_MEDIA_BUTTON, null, this@MediaPlaybackService, MediaButtonReceiver::class.java)
+            val mediaButtonPendingIntent = PendingIntent.getBroadcast(this@MediaPlaybackService, 0, mediaButtonIntent, PendingIntent.FLAG_IMMUTABLE)
+            setMediaButtonReceiver(mediaButtonPendingIntent)
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onPlay() { resume() }
                 override fun onPause() { pause() }
                 override fun onSkipToNext() { onSongComplete?.invoke() }
                 override fun onSkipToPrevious() { onPrevRequested?.invoke() }
-                override fun onStop() { pause() }
+                override fun onStop() {
+                    pause()
+                    try { ServiceCompat.stopForeground(this@MediaPlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE) } catch (_: Exception) {}
+                    stopSelf()
+                }
                 override fun onSeekTo(pos: Long) { seekTo(pos.toInt()) }
+                override fun onMediaButtonEvent(mediaButtonEvent: Intent?): Boolean {
+                    return super.onMediaButtonEvent(mediaButtonEvent)
+                }
             })
             isActive = true
         }
@@ -164,22 +187,95 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                 e.printStackTrace()
             }
         }
+
+        startStatsTracking()
+    }
+
+    private fun startStatsTracking() {
+        serviceScope.launch(Dispatchers.Default) {
+            var actualSecs = 0
+            while (isActive) {
+                if (mediaPlayer?.isPlaying == true) {
+                    delay(1000)
+                    actualSecs++
+                    if (actualSecs >= 5) {
+                        try {
+                            val prefs = getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE)
+                            val totalSecs = prefs.getLong("stats_total_seconds", 0L) + actualSecs
+                            prefs.edit()
+                                .putLong("stats_total_seconds", totalSecs)
+                                .putLong("stats_total_minutes", totalSecs / 60L)
+                                .apply()
+                            actualSecs = 0
+                        } catch (e: Exception) {
+                            android.util.Log.w("BeatBox", "Error saving stats: ${e.message}")
+                        }
+                    }
+                } else {
+                    delay(1000)
+                }
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (Intent.ACTION_MEDIA_BUTTON == intent?.action) {
+            MediaButtonReceiver.handleIntent(mediaSession, intent)
+            return START_STICKY
+        }
+
+        if (currentAudio != null && isPlaying()) {
+            startForeground(notificationId, buildNotification(currentAudio!!, true))
+        } else if (currentAudio != null) {
+            updateNotification(currentAudio!!, false)
+        }
+        
         when (intent?.action) {
             ACTION_PLAY -> resume()
             ACTION_PAUSE -> pause()
             ACTION_NEXT -> onSongComplete?.invoke()
             ACTION_PREV -> onPrevRequested?.invoke()
-            ACTION_STOP -> stopSelf()
+            ACTION_STOP -> {
+                pause()
+                try { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) } catch (_: Exception) {}
+                stopSelf()
+            }
+            ACTION_REPEAT -> {
+                isRepeatEnabled = !isRepeatEnabled
+                currentAudio?.let { updateNotification(it, isPlaying()) }
+            }
+            ACTION_SHUFFLE -> {
+                isShuffleEnabled = !isShuffleEnabled
+                currentAudio?.let { updateNotification(it, isPlaying()) }
+            }
+            ACTION_FAVORITE -> {
+                isFavorite = !isFavorite
+                currentAudio?.let { updateNotification(it, isPlaying()) }
+            }
+            ACTION_SPEED -> {
+                currentSpeedIndex = (currentSpeedIndex + 1) % 6
+                val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+                setSpeed(speeds[currentSpeedIndex])
+                currentAudio?.let { updateNotification(it, isPlaying()) }
+            }
+            ACTION_EQ -> {
+                currentEQIndex = (currentEQIndex + 1) % 5
+                val presets = arrayOf(EQPreset.NONE, EQPreset.BASS_BOOST, EQPreset.VOCAL, EQPreset.TREBLE, EQPreset.LOUDNESS)
+                applyPreset(presets[currentEQIndex])
+                currentAudio?.let { updateNotification(it, isPlaying()) }
+            }
         }
         return START_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
+        if (!isPlaying()) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         val restartServiceIntent = Intent(applicationContext, this.javaClass).also { it.setPackage(packageName) }
         val restartServicePendingIntent = PendingIntent.getService(applicationContext, 1, restartServiceIntent, PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE)
         val alarmService = applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -211,9 +307,29 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     fun play(audio: AudioFile, crossfade: Boolean = false) {
-        if (!requestAudioFocus()) return
+        android.util.Log.d("MediaPlaybackService", "play() called for: ${audio.title}, crossfade: $crossfade")
+        
+        if (!requestAudioFocus()) {
+            android.util.Log.e("MediaPlaybackService", "Failed to get audio focus!")
+            return
+        }
+        
+        android.util.Log.d("MediaPlaybackService", "Audio focus granted")
+        
         try {
-            if (currentAudio?.uri != audio.uri) {
+            // Start foreground immediately to avoid ANR
+            val isNewAudio = currentAudio?.uri != audio.uri
+            
+            if (isNewAudio) {
+                currentAudio = audio
+                // Start foreground with loading notification
+                startForeground(notificationId, buildNotification(audio, false))
+            }
+            
+            if (isNewAudio) {
+                // Cancel any ongoing crossfade
+                stopCrossfadeMonitoring()
+                
                 if (crossfade && mediaPlayer?.isPlaying == true) {
                     val old = mediaPlayer
                     serviceScope.launch(Dispatchers.IO) {
@@ -223,67 +339,117 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                             try { 
                                 old?.setVolume(v.coerceAtLeast(0f), v.coerceAtLeast(0f)) 
                             } catch (e: Exception) {
-                                e.printStackTrace()
+                                android.util.Log.w("BeatBox", "Crossfade volume error: ${e.message}")
                             }
                             delay(100) 
                         }
                         try { 
-                            old?.release() 
+                            old?.release()
+                            android.util.Log.d("BeatBox", "Old player released after crossfade")
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            android.util.Log.e("BeatBox", "Error releasing old player: ${e.message}")
                         }
                     }
                 } else { 
                     releaseEQ()
                     try { 
-                        mediaPlayer?.release() 
+                        mediaPlayer?.release()
+                        android.util.Log.d("BeatBox", "Player released (no crossfade)")
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        android.util.Log.e("BeatBox", "Error releasing player: ${e.message}")
                     }
                 }
-                currentAudio = audio
+                
                 mediaPlayer = MediaPlayer().apply {
                     setAudioAttributes(AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).setUsage(AudioAttributes.USAGE_MEDIA).build())
-                    setDataSource(applicationContext, audio.uri)
-                    prepare()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        try { 
-                            playbackParams = playbackParams.setSpeed(playbackSpeed) 
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                    if (audio.uri.scheme.equals("http", ignoreCase = true) || audio.uri.scheme.equals("https", ignoreCase = true)) {
+                        setDataSource(audio.uri.toString())
+                    } else {
+                        setDataSource(applicationContext, audio.uri)
                     }
-                    if (crossfade) {
-                        setVolume(0f, 0f)
-                        start()
-                        serviceScope.launch(Dispatchers.IO) {
-                            var v = 0f
-                            while (v < 1f && isActive) { 
-                                v += 0.04f
-                                try { 
-                                    setVolume(v.coerceAtMost(1f), v.coerceAtMost(1f)) 
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                                delay(100) 
+                    
+                    // Use prepareAsync instead of prepare to avoid blocking
+                    setOnPreparedListener { mp ->
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            try { 
+                                mp.playbackParams = mp.playbackParams.setSpeed(playbackSpeed) 
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
                         }
-                    } else {
-                        start()
+                        
+                        if (crossfade) {
+                            mp.setVolume(0f, 0f)
+                            mp.start()
+                            serviceScope.launch(Dispatchers.IO) {
+                                var v = 0f
+                                while (v < 1f && isActive) { 
+                                    v += 0.04f
+                                    try { 
+                                        mp.setVolume(v.coerceAtMost(1f), v.coerceAtMost(1f)) 
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                    delay(100) 
+                                }
+                            }
+                        } else {
+                            mp.start()
+                        }
+                        
+                        // Update online audio duration with actual MediaPlayer duration
+                        if (audio.isOnline) {
+                            val mpDur = try { mp.duration.toLong() } catch (_: Exception) { 0L }
+                            if (mpDur > 0L && mpDur != audio.duration) {
+                                val updated = audio.copy(duration = mpDur)
+                                currentAudio = updated
+                                onAudioChanged?.invoke(updated)
+                            }
+                        }
+
+                        // Setup after preparation
+                        setupEQ()
+                        applyPreset(currentPreset)
+                        updateMediaSession(audio, true)
+                        updateNotification(audio, true)
+                        onPlaybackStateChanged?.invoke(true)
+                        onAudioChanged?.invoke(audio)
+                        
+                        // Load album art AFTER player is prepared and playing
+                        loadArtAsync(audio, true)
+                        
+                        // Start automatic crossfade monitoring
+                        startCrossfadeMonitoring(mp)
                     }
                     
                     // Set completion listener
-                    setOnCompletionListener { 
-                        onSongComplete?.invoke()
+                    setOnCompletionListener { completedPlayer ->
+                        if (mediaPlayer === completedPlayer) {
+                            onSongComplete?.invoke()
+                        }
                     }
                     
-                    // Start automatic crossfade monitoring for all songs
-                    val player = this
-                    startCrossfadeMonitoring(player)
+                    // Set error listener
+                    setOnErrorListener { _, what, extra ->
+                        android.util.Log.e("BeatBox", "MediaPlayer error: what=$what, extra=$extra")
+                        
+                        // If error -38, try to recover by skipping to next
+                        if (what == MediaPlayer.MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK || what == -38) {
+                            android.util.Log.e("BeatBox", "Error -38 detected, attempting recovery...")
+                            serviceScope.launch(Dispatchers.Main) {
+                                delay(100) // Small delay
+                                onSongComplete?.invoke() // Skip to next
+                            }
+                            return@setOnErrorListener true // Error handled
+                        }
+                        
+                        false // Let system handle other errors
+                    }
+                    
+                    prepareAsync() // Non-blocking preparation
                 }
-                setupEQ()
-                applyPreset(currentPreset)
-                updateNotification(audio, true)
+                
+                // ✅ Album art loading moved to onPrepared callback
             } else { 
                 mediaPlayer?.let { player ->
                     if (player.isPlaying) { 
@@ -291,7 +457,10 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                         return 
                     } else {
                         try { 
-                            player.start() 
+                            player.start()
+                            updateMediaSession(audio, true)
+                            updateNotification(audio, true)
+                            onPlaybackStateChanged?.invoke(true)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
@@ -312,12 +481,8 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                     e.printStackTrace()
                 }
             }
-            updateMediaSession(audio, true)
-            startForeground(notificationId, buildNotification(audio, true))
-            loadArtAsync(audio, true)
-            onPlaybackStateChanged?.invoke(true)
-            onAudioChanged?.invoke(audio)
         } catch (e: Exception) { 
+            android.util.Log.e("BeatBox", "Play error", e)
             e.printStackTrace() 
         }
     }
@@ -325,10 +490,24 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     private fun loadArtAsync(audio: AudioFile, playing: Boolean) {
         if (bitmapCache.get(audio.id) != null) return
         serviceScope.launch(Dispatchers.IO) {
-            val bmp = loadAlbumArt(audio)
-            if (bmp != null) {
-                bitmapCache.put(audio.id, bmp)
-                withContext(Dispatchers.Main) { if (currentAudio?.id == audio.id) { updateMediaSession(audio, playing); updateNotification(audio, playing) } }
+            try {
+                // Add timeout to prevent indefinite blocking
+                withTimeout(6000L) { // 6 second timeout
+                    val bmp = loadAlbumArt(audio)
+                    if (bmp != null) {
+                        bitmapCache.put(audio.id, bmp)
+                        withContext(Dispatchers.Main) { 
+                            if (currentAudio?.id == audio.id) { 
+                                updateMediaSession(audio, playing)
+                                updateNotification(audio, playing) 
+                            } 
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                android.util.Log.w("BeatBox", "Album art loading timed out for ${audio.title}")
+            } catch (e: Exception) {
+                android.util.Log.e("BeatBox", "Error loading album art for ${audio.title}: ${e.message}")
             }
         }
     }
@@ -458,28 +637,26 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     private fun releaseEQ() {
-        // Run on background thread to prevent ANR
-        serviceScope.launch(Dispatchers.IO) {
-            try { 
-                equalizer?.let { eq ->
-                    eq.enabled = false
-                    eq.release()
-                }
-                bassBoost?.let { bb ->
-                    bb.enabled = false
-                    bb.release()
-                }
-                loudnessEnhancer?.let { le ->
-                    le.enabled = false
-                    le.release()
-                }
-                visualizer?.let { v ->
-                    v.enabled = false
-                    v.release()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+        try { 
+            equalizer?.let { eq ->
+                try { eq.enabled = false } catch (_: Exception) {}
+                try { eq.release() } catch (_: Exception) {}
             }
+            bassBoost?.let { bb ->
+                try { bb.enabled = false } catch (_: Exception) {}
+                try { bb.release() } catch (_: Exception) {}
+            }
+            loudnessEnhancer?.let { le ->
+                try { le.enabled = false } catch (_: Exception) {}
+                try { le.release() } catch (_: Exception) {}
+            }
+            visualizer?.let { v ->
+                try { v.enabled = false } catch (_: Exception) {}
+                try { v.release() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
             equalizer = null
             bassBoost = null
             loudnessEnhancer = null
@@ -515,34 +692,58 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         
         // Run on background thread to prevent ANR
         monitoringJob = serviceScope.launch(Dispatchers.IO) {
+            // ✅ Wait for MediaPlayer to be fully ready before starting monitoring
+            // This prevents Error -38 on some devices
+            delay(500)
+            
             var crossfadeTriggered = false
             
             // Get crossfade setting
             val prefs = getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE)
             val crossfadeEnabled = prefs.getBoolean("crossfade_enabled", true)
             
+            // Get duration once at start using metadata fallback
+            val duration = try {
+                player.duration
+            } catch (e: IllegalStateException) {
+                android.util.Log.v("BeatBox", "Using metadata duration for crossfade monitoring")
+                currentAudio?.duration?.toInt() ?: 0
+            }
+            
+            // If no valid duration, exit monitoring
+            if (duration <= 3000) {
+                android.util.Log.v("BeatBox", "Song too short or no duration, skipping crossfade")
+                return@launch
+            }
+            
             while (isActive) {
                 try {
                     // Check if player is still playing
                     if (!player.isPlaying || crossfadeTriggered) break
                     
-                    val currentPos = player.currentPosition
-                    val duration = player.duration
+                    // State-safe getCurrentPosition (safer than getDuration)
+                    val currentPos = try {
+                        player.currentPosition
+                    } catch (e: IllegalStateException) {
+                        android.util.Log.v("BeatBox", "Player not ready for currentPosition in crossfade")
+                        break
+                    }
                     
                     // Start crossfade 3 seconds before song ends
-                    // Only for songs longer than 3 seconds
-                    if (duration > 3000 && currentPos > 0 && (duration - currentPos) in 2900..3100) {
+                    if (currentPos > 0 && (duration - currentPos) in 1..3100) {
                         if (!crossfadeTriggered && crossfadeEnabled) {
                             crossfadeTriggered = true
                             withContext(Dispatchers.Main) {
-                                onSongComplete?.invoke()
+                                if (mediaPlayer === player) {
+                                    onSongComplete?.invoke()
+                                }
                             }
                         }
                         break
                     }
                 } catch (e: Exception) {
                     // Player might be released or in invalid state, exit loop
-                    android.util.Log.e("BeatBox", "Crossfade monitoring error", e)
+                    android.util.Log.e("BeatBox", "Crossfade monitoring error: ${e.message}", e)
                     break
                 }
                 delay(200) // Check every 200ms
@@ -564,8 +765,55 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         if (requestAudioFocus()) { try { mediaPlayer?.start(); onPlaybackStateChanged?.invoke(true); currentAudio?.let { updateMediaSession(it, true); updateNotification(it, true) } } catch (_: Exception) {} }
     }
 
-    fun seekTo(pos: Int) { try { mediaPlayer?.seekTo(pos) } catch (_: Exception) {} }
-    fun getCurrentPosition(): Int = try { mediaPlayer?.currentPosition ?: 0 } catch (_: Exception) { 0 }
+    fun seekTo(pos: Int) { 
+        try { 
+            mediaPlayer?.let { player ->
+                // Only seek if player is in valid state
+                if (player.isPlaying || currentAudio != null) {
+                    val actualDur = try { player.duration } catch (_: Exception) { currentAudio?.duration?.toInt() ?: 0 }
+                    val maxSeek = if (actualDur > 1000) actualDur - 600 else actualDur
+                    val safePos = if (maxSeek > 0) pos.coerceIn(0, maxSeek) else pos.coerceAtLeast(0)
+                    player.seekTo(safePos)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("BeatBox", "seekTo failed: ${e.message}")
+        } 
+    }
+    
+    fun getCurrentPosition(): Int = try { 
+        mediaPlayer?.let { player ->
+            // Check if player is in valid state before getting position
+            if (player.isPlaying || currentAudio != null) {
+                player.currentPosition
+            } else {
+                0
+            }
+        } ?: 0
+    } catch (e: Exception) { 
+        android.util.Log.w("BeatBox", "getCurrentPosition failed: ${e.message}")
+        0 
+    }
+    
+    fun getDuration(): Int = try {
+        mediaPlayer?.let { player ->
+            try {
+                // Try to get duration from MediaPlayer
+                val d = player.duration
+                if (d > 0) {
+                    return d
+                }
+            } catch (e: IllegalStateException) {
+                // Player not in valid state, fall back to metadata
+                android.util.Log.v("BeatBox", "MediaPlayer not ready for getDuration, using metadata")
+            }
+        }
+        // Fallback to cached duration from metadata
+        currentAudio?.duration?.toInt() ?: 0
+    } catch (e: Exception) {
+        android.util.Log.w("BeatBox", "getDuration failed: ${e.message}")
+        currentAudio?.duration?.toInt() ?: 0
+    }
     fun isPlaying(): Boolean = try { mediaPlayer?.isPlaying == true } catch (_: Exception) { false }
     fun setVolume(v: Float) { try { mediaPlayer?.setVolume(v, v) } catch (_: Exception) {} }
     
@@ -597,8 +845,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
     
     fun pauseVisualizer() {
-        // Run on background thread to prevent ANR
-        serviceScope.launch(Dispatchers.IO) {
+        serviceScope.launch(Dispatchers.Main) {
             try {
                 visualizer?.enabled = false
                 android.util.Log.d("BeatBox", "Visualizer paused for battery saving")
@@ -609,8 +856,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
     
     fun resumeVisualizer() {
-        // Run on background thread to prevent ANR
-        serviceScope.launch(Dispatchers.IO) {
+        serviceScope.launch(Dispatchers.Main) {
             try {
                 // Always enable if visualizer exists, regardless of playing state
                 // The visualizer will just show zero values when not playing
@@ -624,12 +870,21 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
 
     private fun updateMediaSession(audio: AudioFile, playing: Boolean) {
         try {
-            mediaSession.setMetadata(MediaMetadataCompat.Builder()
+            val albumArt = bitmapCache.get(audio.id)
+            if (albumArt == null) {
+                loadArtAsync(audio, playing)
+            }
+            
+            val metadataBuilder = MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, audio.title)
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, audio.artist)
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, audio.duration)
-                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmapCache.get(audio.id))
-                .build())
+            
+            if (albumArt != null) {
+                metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArt)
+            }
+            
+            mediaSession.setMetadata(metadataBuilder.build())
             mediaSession.setPlaybackState(PlaybackStateCompat.Builder()
                 .setState(if (playing) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED, getCurrentPosition().toLong(), if (playing) playbackSpeed else 0f)
                 .setActions(PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO or PlaybackStateCompat.ACTION_STOP)
@@ -645,26 +900,161 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     private fun buildNotification(audio: AudioFile, playing: Boolean): Notification {
+        // Only use cached album art for notification - don't block to load it
+        val albumArt = bitmapCache.get(audio.id)
+        
         return NotificationCompat.Builder(this, channelId)
-            .setContentTitle(audio.title).setContentText(audio.artist).setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setLargeIcon(bitmapCache.get(audio.id)).setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setOnlyAlertOnce(true)
-            .setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(mediaSession.sessionToken).setShowActionsInCompactView(0, 1, 2))
-            .addAction(android.R.drawable.ic_media_previous, "Prev", actionIntent(ACTION_PREV))
-            .addAction(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (playing) "Pause" else "Play", actionIntent(if (playing) ACTION_PAUSE else ACTION_PLAY))
-            .addAction(android.R.drawable.ic_media_next, "Next", actionIntent(ACTION_NEXT))
-            .setOngoing(playing).build()
+            .setContentTitle(audio.title)
+            .setContentText(audio.artist)
+            .setSmallIcon(R.drawable.ic_notification_music)
+            .setLargeIcon(albumArt)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this, 
+                    0, 
+                    Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }, 
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setShowWhen(false)
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setMediaSession(mediaSession.sessionToken)
+                    .setShowActionsInCompactView(0, 1, 2)
+                    .setShowCancelButton(false)
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_previous,
+                    "Previous",
+                    actionIntent(ACTION_PREV)
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                    if (playing) "Pause" else "Play",
+                    actionIntent(if (playing) ACTION_PAUSE else ACTION_PLAY)
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_next,
+                    "Next",
+                    actionIntent(ACTION_NEXT)
+                ).build()
+            )
+            .setDeleteIntent(actionIntent(ACTION_STOP))
+            .setOngoing(playing)
+            .build()
     }
 
     private fun loadAlbumArt(audio: AudioFile): Bitmap? {
         return try {
+            // First try: Load from album art URI
             val uri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), audio.albumId)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentResolver.loadThumbnail(uri, android.util.Size(300, 300), null)
-            else @Suppress("DEPRECATION") MediaStore.Images.Media.getBitmap(contentResolver, uri)
-        } catch (_: Exception) { null }
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver.loadThumbnail(uri, android.util.Size(512, 512), null)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(contentResolver, uri)
+                ImageDecoder.decodeBitmap(source)
+            } else {
+                @Suppress("DEPRECATION") 
+                MediaStore.Images.Media.getBitmap(contentResolver, uri)
+            }
+            
+            // Cache the loaded bitmap
+            if (bitmap != null) {
+                bitmapCache.put(audio.id, bitmap)
+            }
+            
+            bitmap
+        } catch (e: Exception) { 
+            android.util.Log.w("BeatBox", "Failed to load album art from URI for ${audio.title}, trying embedded art: ${e.message}")
+            
+            // Second try: Extract embedded album art from audio file with timeout
+            var retriever: MediaMetadataRetriever? = null
+            try {
+                // Use withTimeout to prevent ANR from slow metadata extraction
+                val timeoutMillis = 5000L // 5 second timeout
+                val startTime = System.currentTimeMillis()
+                
+                retriever = MediaMetadataRetriever()
+                
+                // Try to set data source - this can take a long time for some files
+                try {
+                    if (audio.uri.scheme.equals("http", ignoreCase = true) || audio.uri.scheme.equals("https", ignoreCase = true)) {
+                        retriever.setDataSource(audio.uri.toString(), HashMap())
+                    } else {
+                        // For file URIs, use file descriptor for better performance
+                        contentResolver.openFileDescriptor(audio.uri, "r")?.use { pfd ->
+                            retriever.setDataSource(pfd.fileDescriptor)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("BeatBox", "Failed to set data source for ${audio.title}: ${e.message}")
+                    return null
+                }
+                
+                // Check if we've already exceeded timeout during setDataSource
+                if (System.currentTimeMillis() - startTime > timeoutMillis) {
+                    android.util.Log.w("BeatBox", "Timeout during setDataSource for ${audio.title}")
+                    return null
+                }
+                
+                // Extract album art - this can also be slow
+                val art = retriever.embeddedPicture
+                
+                // Check timeout again
+                if (System.currentTimeMillis() - startTime > timeoutMillis) {
+                    android.util.Log.w("BeatBox", "Timeout during embeddedPicture extraction for ${audio.title}")
+                    return null
+                }
+                
+                if (art != null) {
+                    val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
+                    if (bitmap != null) {
+                        bitmapCache.put(audio.id, bitmap)
+                        android.util.Log.d("BeatBox", "Successfully loaded embedded album art for ${audio.title} in ${System.currentTimeMillis() - startTime}ms")
+                    }
+                    bitmap
+                } else {
+                    android.util.Log.w("BeatBox", "No embedded album art found for ${audio.title}")
+                    null
+                }
+            } catch (e2: Exception) {
+                android.util.Log.e("BeatBox", "Failed to load embedded album art for ${audio.title}: ${e2.message}")
+                null
+            } finally {
+                // CRITICAL: Always release retriever in finally block
+                try {
+                    retriever?.release()
+                } catch (e: Exception) {
+                    android.util.Log.e("BeatBox", "Error releasing MediaMetadataRetriever: ${e.message}")
+                }
+            }
+        }
     }
 
-    private fun updateNotification(audio: AudioFile, playing: Boolean) { try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(notificationId, buildNotification(audio, playing)) } catch (_: Exception) {} }
+    private fun updateNotification(audio: AudioFile, playing: Boolean) {
+        try {
+            val notification = buildNotification(audio, playing)
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            if (playing) {
+                startForeground(notificationId, notification)
+            } else {
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+                notificationManager.notify(notificationId, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("BeatBox", "Error updating notification: ${e.message}")
+        }
+    }
 
     private fun actionIntent(action: String) = PendingIntent.getService(this, action.hashCode(), Intent(this, MediaPlaybackService::class.java).apply { this.action = action }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
@@ -679,14 +1069,14 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         positionUpdateJob = null
         lyricsPositionCallback = null
         
-        // Cancel all coroutines
-        serviceScope.cancel()
-        
         // Abandon audio focus
         abandonAudioFocus()
         
         // Release equalizer resources
         releaseEQ()
+
+        // Cancel all coroutines after asynchronous effect cleanup was scheduled
+        serviceScope.cancel()
         
         // Unregister receivers safely
         if (noisyRegistered) {
@@ -738,5 +1128,10 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         const val ACTION_NEXT = "com.blackstack.beatbox.NEXT"
         const val ACTION_PREV = "com.blackstack.beatbox.PREV"
         const val ACTION_STOP = "com.blackstack.beatbox.STOP"
+        const val ACTION_REPEAT = "com.blackstack.beatbox.REPEAT"
+        const val ACTION_SHUFFLE = "com.blackstack.beatbox.SHUFFLE"
+        const val ACTION_FAVORITE = "com.blackstack.beatbox.FAVORITE"
+        const val ACTION_SPEED = "com.blackstack.beatbox.SPEED"
+        const val ACTION_EQ = "com.blackstack.beatbox.EQ"
     }
 }

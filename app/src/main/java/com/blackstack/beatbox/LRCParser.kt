@@ -9,7 +9,7 @@ package com.blackstack.beatbox
 object LRCParser {
     
     // Regex patterns for parsing
-    private val TIMESTAMP_PATTERN = Regex("""^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$""")
+    private val TIMESTAMP_PATTERN = Regex("""^\[(\d{2}):(\d{2})\.(\d{2,3})](.*)$""")
     private val METADATA_PATTERN = Regex("""^\[(ti|ar|al|by|offset):(.+)\]$""")
     
     /**
@@ -48,6 +48,10 @@ object LRCParser {
                 }
             }
             
+            if (lines.none { it.text.isNotBlank() }) {
+                return Result.failure(IllegalArgumentException("Lyrics content is empty"))
+            }
+
             // Sort lines by timestamp
             val sortedLines = lines.sortedBy { it.timestampMs }
             
@@ -57,7 +61,7 @@ object LRCParser {
                 artist = metadataMap["ar"],
                 album = metadataMap["al"],
                 by = metadataMap["by"],
-                offset = metadataMap["offset"]?.toLongOrNull() ?: 0L
+                offset = metadataMap["offset"]?.toLongOrNull() ?: 0L,
             )
             
             // Apply offset to all timestamps if present
@@ -65,7 +69,7 @@ object LRCParser {
                 sortedLines.map { line ->
                     SyncedLyricsLine(
                         timestampMs = line.timestampMs + metadata.offset,
-                        text = line.text
+                        text = line.text,
                     )
                 }
             } else {
@@ -119,20 +123,20 @@ object LRCParser {
      */
     private fun parseTimestamp(match: MatchResult): Long? {
         return try {
-            val minutes = match.groupValues[1].toInt()
-            val seconds = match.groupValues[2].toInt()
+            val minutes = match.groupValues[1].toLong()
+            val seconds = match.groupValues[2].toLong()
             val fraction = match.groupValues[3]
             
             // Handle both .xx (centiseconds) and .xxx (milliseconds) formats
             val milliseconds = if (fraction.length == 2) {
-                fraction.toInt() * 10  // centiseconds to milliseconds
+                fraction.toLong() * 10L  // centiseconds to milliseconds
             } else {
-                fraction.toInt()  // already milliseconds
+                fraction.toLong()  // already milliseconds
             }
             
             // Convert to total milliseconds
-            (minutes * 60 + seconds) * 1000L + milliseconds
-        } catch (e: NumberFormatException) {
+            ((minutes * 60L) + seconds) * 1000L + milliseconds
+        } catch (_: NumberFormatException) {
             null
         }
     }
