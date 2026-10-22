@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,24 +6,14 @@ plugins {
 }
 
 /**
- * API anahtarları kaynak kontrolüne giremez.
+ * API anahtarları kaynak kontrolüne ve APK içinde plaintext olarak giremez.
  *
- * Kaynak sırası:
- *   1. local.properties -> MUSIXMATCH_API_KEY=...
- *   2. Ortam değişkeni   -> MUSIXMATCH_API_KEY=...
- *   3. Hiçbiri yoksa boş string (uygulama çalışır, Musixmatch sağlayıcısı devre dışı kalır)
- *
- * local.properties zaten .gitignore içinde.
+ * MUSIXMATCH_API_KEY şu an boş bırakılmıştır: Musixmatch sağlayıcısı devre dışı
+ * kalır, ancak uygulama diğer ücretsiz sağlayıcılar (LRCLIB, lyrics.ovh, Genius,
+ * NetEase, BetterLyrics) ile çalışmaya devam eder. Anahtar ihtiyaç duyulursa
+ * runtime'da güvenli bir şekilde sağlanmalı (asla APK içinde plaintext).
  */
-val musixmatchApiKey: String = run {
-    val localProperties = Properties().apply {
-        val file = rootProject.file("local.properties")
-        if (file.exists()) file.inputStream().use { load(it) }
-    }
-    localProperties.getProperty("MUSIXMATCH_API_KEY")
-        ?: providers.environmentVariable("MUSIXMATCH_API_KEY").orNull
-        ?: ""
-}.replace("\\", "\\\\").replace("\"", "\\\"")
+val musixmatchApiKey: String = ""
 
 ksp {
     arg("room.generateKotlin", "true")

@@ -10,6 +10,15 @@
 -renamesourcefileattribute SourceFile
 
 # ---------------------------------------------------------------------------
+# Compose Foundation
+# ---------------------------------------------------------------------------
+# FlowRow is called directly from LyricsScreen. R8 may drop the static
+# FlowLayoutKt.FlowRow entry point in minified release builds, causing a
+# NoSuchMethodError at runtime. Keep it explicitly.
+-keep class androidx.compose.foundation.layout.FlowLayoutKt { *; }
+-keep class androidx.compose.foundation.layout.FlowRowOverflow { *; }
+
+# ---------------------------------------------------------------------------
 # Retrofit / Gson
 # ---------------------------------------------------------------------------
 # Retrofit builds its call adapters by reading the annotations on the
