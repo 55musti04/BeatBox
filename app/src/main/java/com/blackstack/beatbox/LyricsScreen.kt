@@ -1,6 +1,7 @@
 package com.blackstack.beatbox
 
 import androidx.compose.animation.core.*
+import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,8 +32,15 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 /**
- * Modern theme-synchronized Apple-Music style immersive lyrics screen with
- * real-time character-by-character lighting & animated intro spinners.
+ * Modern Apple-Music style immersive lyrics screen.
+ *
+ * Improvements over the previous version:
+ *   • Staggered entrance animation for every lyric line (fade + slide up)
+ *   • "Current line" gets a soft primary-color glow and a gentle bounce
+ *   • Karaoke highlighting: active word is tinted with the theme primary color,
+ *     lifts up and pulses; past words stay white, future words fade out
+ *   • Ambient breathing background artwork + soft vignette for readability
+ *   • Glassmorphic top navigation bar
  */
 @Composable
 fun LyricsScreen(
@@ -46,7 +54,7 @@ fun LyricsScreen(
 ) {
     val lyricsState by viewModel.lyricsState.collectAsState()
     val currentLineIndex by viewModel.currentLineIndex.collectAsState()
-    
+
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var showManualSearchDialog by remember { mutableStateOf(false) }
     var searchTrackQuery by remember(audio.id) { mutableStateOf(audio.title) }
@@ -55,55 +63,61 @@ fun LyricsScreen(
     // User manual scroll detection
     var userIsScrolling by remember { mutableStateOf(false) }
 
-    // Reset userIsScrolling after 4 seconds
     LaunchedEffect(userIsScrolling) {
         if (userIsScrolling) {
             delay(4000)
             userIsScrolling = false
         }
     }
-    
+
     // Load lyrics when audio changes
     LaunchedEffect(audio.id) {
         viewModel.loadLyrics(audio)
     }
-    
+
     // Update playback position
     LaunchedEffect(currentPositionMs) {
         viewModel.updatePlaybackPosition(currentPositionMs)
     }
-    
+
     val primaryColor = MaterialTheme.colorScheme.primary
 
     // Ambient breathing pulse for background artwork
     val infiniteTransition = rememberInfiniteTransition(label = "apple_lyrics_ambient")
     val ambientScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.08f,
+        targetValue = 1.06f,
         animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            tween<Float>(4500),
+            RepeatMode.Reverse
         ),
         label = "ambient_scale"
+    )
+
+    // Slow panning light sweep across the artwork
+    val sweep by infiniteTransition.animateFloat(
+        initialValue = -200f,
+        targetValue = 400f,
+        animationSpec = infiniteRepeatable(
+            tween(8000),
+            RepeatMode.Reverse
+        ),
+        label = "light_sweep"
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF090A0F))
+            .background(Color(0xFF0A0B12))
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        if (dragOffset > 130f) {
+                        if (dragOffset > 140f) {
                             onDismiss()
                         }
                         dragOffset = 0f
                     },
-                    onVerticalDrag = { _, dragAmount ->
-                        if (dragAmount > 0) {
-                            dragOffset += dragAmount
-                        }
-                    }
+                    onVerticalDrag = { _, dragAmount -> if (dragAmount > 0) dragOffset += dragAmount }
                 )
             }
     ) {
@@ -114,16 +128,31 @@ fun LyricsScreen(
                 .graphicsLayer {
                     scaleX = ambientScale
                     scaleY = ambientScale
-                    alpha = 0.35f
+                    alpha = 0.30f
                 }
         ) {
             AlbumArtImage(
                 audio,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(110.dp)
+                    .blur(120.dp)
             )
         }
+
+        // Soft moving light sweep over the artwork (adds depth)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.06f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
 
         // Dark gradient vignette overlay for high contrast text readability
         Box(
@@ -132,9 +161,9 @@ fun LyricsScreen(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.Black.copy(alpha = 0.75f),
-                            Color.Black.copy(alpha = 0.55f),
-                            Color.Black.copy(alpha = 0.88f)
+                            Color.Black.copy(alpha = 0.80f),
+                            Color.Black.copy(alpha = 0.50f),
+                            Color.Black.copy(alpha = 0.92f)
                         )
                     )
                 )
@@ -148,6 +177,7 @@ fun LyricsScreen(
                 currentLineIndex = currentLineIndex,
                 currentPositionMs = currentPositionMs,
                 userIsScrolling = userIsScrolling,
+                primaryColor = primaryColor,
                 onLineClick = { line ->
                     onSeekTo?.invoke(line.timestampMs)
                     viewModel.updatePlaybackPosition(line.timestampMs)
@@ -173,7 +203,7 @@ fun LyricsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -181,12 +211,12 @@ fun LyricsScreen(
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
-                        .size(42.dp)
-                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                        .size(44.dp)
+                        .background(Color.White.copy(alpha = 0.10f), CircleShape)
                 ) {
                     Icon(
                         Icons.Rounded.KeyboardArrowDown,
-                        contentDescription = "Close",
+                        contentDescription = "Kapat",
                         tint = Color.White,
                         modifier = Modifier.size(28.dp)
                     )
@@ -197,15 +227,16 @@ fun LyricsScreen(
                     Text(
                         text = audio.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         textAlign = TextAlign.Center
                     )
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = audio.artist,
-                        color = Color.White.copy(alpha = 0.65f),
-                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.70f),
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         textAlign = TextAlign.Center
@@ -216,14 +247,14 @@ fun LyricsScreen(
                 IconButton(
                     onClick = { showManualSearchDialog = true },
                     modifier = Modifier
-                        .size(42.dp)
-                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                        .size(44.dp)
+                        .background(Color.White.copy(alpha = 0.10f), CircleShape)
                 ) {
                     Icon(
                         Icons.Rounded.Search,
-                        contentDescription = "Search",
+                        contentDescription = "Söz ara",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -240,7 +271,7 @@ fun LyricsScreen(
                             viewModel.searchLyricsManually(searchTrackQuery, searchArtistQuery)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(strings.get("ok"), fontWeight = FontWeight.Bold)
                     }
@@ -264,7 +295,7 @@ fun LyricsScreen(
                             onValueChange = { searchTrackQuery = it },
                             label = { Text(strings.get("track_name")) },
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = primaryColor,
                                 focusedLabelColor = primaryColor
@@ -275,7 +306,7 @@ fun LyricsScreen(
                             onValueChange = { searchArtistQuery = it },
                             label = { Text(strings.get("artist")) },
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = primaryColor,
                                 focusedLabelColor = primaryColor
@@ -284,7 +315,7 @@ fun LyricsScreen(
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(26.dp)
             )
         }
     }
@@ -298,15 +329,15 @@ private fun AppleStyleLoadingView(strings: Strings) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
-                color = Color.White.copy(alpha = 0.9f),
+                color = Color.White.copy(alpha = 0.95f),
                 strokeWidth = 3.dp,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(50.dp)
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
             Text(
                 text = strings.get("loading_lyrics"),
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.80f),
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -331,44 +362,44 @@ private fun AppleStyleErrorView(
             Icon(
                 imageVector = Icons.Rounded.MusicOff,
                 contentDescription = null,
-                modifier = Modifier.size(54.dp),
-                tint = Color.White.copy(alpha = 0.4f)
+                modifier = Modifier.size(56.dp),
+                tint = Color.White.copy(alpha = 0.35f)
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(22.dp))
             Text(
                 text = strings.get("no_lyrics_found"),
                 color = Color.White,
-                fontSize = 20.sp,
+                fontSize = 21.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = message,
-                color = Color.White.copy(alpha = 0.55f),
-                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.60f),
+                fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(28.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Spacer(Modifier.height(30.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Button(
                     onClick = onRetry,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.height(46.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.height(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Refresh, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Rounded.Refresh, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
                     Text(strings.get("retry"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = onManualSearch,
                     colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.height(46.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.height(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Search, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Rounded.Search, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
                     Text(strings.get("manual_search"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
@@ -382,6 +413,7 @@ private fun AppleStyleLyricsContent(
     currentLineIndex: Int,
     currentPositionMs: Long,
     userIsScrolling: Boolean,
+    primaryColor: Color,
     onLineClick: (SyncedLyricsLine) -> Unit,
     onUserScroll: () -> Unit
 ) {
@@ -392,7 +424,7 @@ private fun AppleStyleLyricsContent(
         if (!userIsScrolling && lyrics.lines.isNotEmpty() && currentLineIndex in lyrics.lines.indices) {
             listState.animateScrollToItem(
                 index = currentLineIndex,
-                scrollOffset = -300
+                scrollOffset = -260
             )
         }
     }
@@ -400,11 +432,11 @@ private fun AppleStyleLyricsContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 180.dp, bottom = 320.dp, start = 28.dp, end = 28.dp),
+        contentPadding = PaddingValues(top = 170.dp, bottom = 300.dp, start = 24.dp, end = 24.dp),
         horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(28.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        items(lyrics.lines.size) { index ->
+        items(lyrics.lines.size, key = { it -> it }) { index ->
             val line = lyrics.lines[index]
             val isCurrent = index == currentLineIndex
             val isPast = index < currentLineIndex
@@ -412,17 +444,24 @@ private fun AppleStyleLyricsContent(
             val nextTimestamp = if (index < lyrics.lines.size - 1) lyrics.lines[index + 1].timestampMs else line.timestampMs + 4000L
             val lineDurationMs = (nextTimestamp - line.timestampMs).coerceAtLeast(1000L)
 
-            AppleStyleLyricsLine(
-                line = line,
-                isCurrent = isCurrent,
-                isPast = isPast,
-                currentPositionMs = currentPositionMs,
-                lineDurationMs = lineDurationMs,
-                onClick = {
-                    onUserScroll()
-                    onLineClick(line)
-                }
-            )
+            // Entrance animation: every line fades in and slides up slightly
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween<Float>(350))
+            ) {
+                AppleStyleLyricsLine(
+                    line = line,
+                    isCurrent = isCurrent,
+                    isPast = isPast,
+                    currentPositionMs = currentPositionMs,
+                    lineDurationMs = lineDurationMs,
+                    primaryColor = primaryColor,
+                    onClick = {
+                        onUserScroll()
+                        onLineClick(line)
+                    }
+                )
+            }
         }
     }
 }
@@ -431,7 +470,8 @@ private fun AppleStyleLyricsContent(
 private fun FlowingKaraokeText(
     text: String,
     progress: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    primaryColor: Color
 ) {
     val words = remember(text) { text.split(" ") }
     val totalChars = remember(text) { text.length.coerceAtLeast(1) }
@@ -451,10 +491,6 @@ private fun FlowingKaraokeText(
         (progress * totalChars).toInt().coerceIn(0, totalChars)
     }
 
-    // Row used instead of FlowRow: FlowRow's newer overloads (with
-    // FlowRowOverflow) are not reliably present across foundation-layout
-    // versions, which caused a NoSuchMethodError on release builds. Row is
-    // stable since Compose 1.0 and never crashes at runtime.
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
@@ -468,53 +504,59 @@ private fun FlowingKaraokeText(
             val isWordPast = intCharIndex >= wordEndChar
             val isWordActive = intCharIndex in wordStartChar until wordEndChar
 
-            // Smooth spring scale for active word
+            // Active word: theme color, lifts up and pulses softly
             val wordScale by animateFloatAsState(
                 targetValue = when {
-                    isWordActive -> 1.12f
+                    isWordActive -> 1.14f
                     isWordPast -> 1.0f
-                    else -> 0.96f
+                    else -> 0.94f
                 },
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                label = "word_scale_$index"
-            )
-
-            // Floating upward pop for active word (-4.dp)
-            val wordOffsetY by animateFloatAsState(
-                targetValue = if (isWordActive) -4f else 0f,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
                     stiffness = Spring.StiffnessLow
                 ),
-                label = "word_offset_$index"
+                label = "word_scale_${index}_${word.hashCode()}"
             )
 
-            // Character by character annotated string inside word (Cached on integer character change only!)
+            val wordOffsetY by animateFloatAsState(
+                targetValue = if (isWordActive) -6f else 0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                ),
+                label = "word_offset_${index}_${word.hashCode()}"
+            )
+
+            // Active word also pulses its alpha for a "breathing" feel
+            val wordPulse by animateFloatAsState(
+                targetValue = if (isWordActive) 1f else 0.85f,
+                animationSpec = tween<Float>(250),
+                label = "word_pulse_${index}_${word.hashCode()}"
+            )
+
+            // Character by character annotated string inside word
             val annotatedWord = remember(word, intCharIndex) {
                 buildAnnotatedString {
                     for (i in word.indices) {
                         val absoluteCharIndex = wordStartChar + i
                         when {
                             absoluteCharIndex <= intCharIndex -> {
-                                // Sung & Active character (Parıldayan Saf Beyaz)
+                                // Sung character: theme color, bold
                                 withStyle(
                                     style = SpanStyle(
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black
+                                        color = if (isWordActive) primaryColor else Color.White,
+                                        fontWeight = if (isWordActive) FontWeight.ExtraBold else FontWeight.SemiBold
                                     )
                                 ) {
                                     append(word[i])
                                 }
                             }
                             else -> {
-                                // Future character (Yarı Şeffaf Mat Beyaz)
+                                // Future character: dimmed
                                 withStyle(
                                     style = SpanStyle(
-                                        color = Color.White.copy(alpha = 0.35f),
-                                        fontWeight = FontWeight.SemiBold
+                                        color = Color.White.copy(alpha = 0.30f),
+                                        fontWeight = FontWeight.Medium
                                     )
                                 ) {
                                     append(word[i])
@@ -531,14 +573,15 @@ private fun FlowingKaraokeText(
                         scaleX = wordScale
                         scaleY = wordScale
                         translationY = wordOffsetY
+                        alpha = wordPulse
                         transformOrigin = TransformOrigin(0f, 0.5f)
                     }
-                    .padding(end = 10.dp, top = 4.dp, bottom = 4.dp)
+                    .padding(end = 12.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 Text(
                     text = annotatedWord,
-                    fontSize = 28.sp,
-                    lineHeight = 38.sp
+                    fontSize = 30.sp,
+                    lineHeight = 40.sp
                 )
             }
         }
@@ -552,25 +595,36 @@ private fun AppleStyleLyricsLine(
     isPast: Boolean,
     currentPositionMs: Long,
     lineDurationMs: Long,
+    primaryColor: Color,
     onClick: () -> Unit
 ) {
     val alpha by animateFloatAsState(
         targetValue = when {
             isCurrent -> 1f
-            isPast -> 0.35f
-            else -> 0.45f
+            isPast -> 0.40f
+            else -> 0.50f
         },
-        animationSpec = tween(400),
-        label = "apple_line_alpha"
+        animationSpec = tween<Float>(450),
+        label = "line_alpha_${line.timestampMs}"
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isCurrent) 1.04f else 0.96f,
+        targetValue = if (isCurrent) 1.06f else 0.95f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+            stiffness = Spring.StiffnessMedium
         ),
-        label = "apple_line_scale"
+        label = "line_scale_${line.timestampMs}"
+    )
+
+    // Gentle glow pulse on the current line only
+    val glow by animateFloatAsState(
+        targetValue = if (isCurrent) 1f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween<Float>(1600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "line_glow_${line.timestampMs}"
     )
 
     val isIntro = remember(line.text) {
@@ -590,24 +644,44 @@ private fun AppleStyleLyricsLine(
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
     ) {
+        if (isCurrent) {
+            // Soft primary-color glow behind the current line
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                primaryColor.copy(alpha = 0.14f * glow),
+                                Color.Transparent,
+                                primaryColor.copy(alpha = 0.14f * glow)
+                            )
+                        ),
+                        shape = RoundedCornerShape(18.dp)
+                    )
+                    .padding(vertical = 6.dp)
+            )
+        }
+
         if (isIntro) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(vertical = 10.dp)
             ) {
                 if (isCurrent) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(34.dp),
                         color = Color.White.copy(alpha = alpha),
                         strokeWidth = 3.dp
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(14.dp))
                 }
                 Text(
                     text = if (isCurrent) "Müzik Girişi..." else "♪ ♪ ♪",
                     color = Color.White.copy(alpha = alpha),
-                    fontSize = if (isCurrent) 26.sp else 20.sp,
+                    fontSize = if (isCurrent) 27.sp else 21.sp,
                     fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.SemiBold
                 )
             }
@@ -616,16 +690,17 @@ private fun AppleStyleLyricsLine(
             FlowingKaraokeText(
                 text = line.text,
                 progress = progress,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                primaryColor = primaryColor
             )
         } else {
             Text(
                 text = line.text,
                 color = Color.White.copy(alpha = alpha),
-                fontSize = 22.sp,
+                fontSize = 23.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Start,
-                lineHeight = 30.sp,
+                lineHeight = 32.sp,
                 modifier = Modifier.fillMaxWidth()
             )
         }
