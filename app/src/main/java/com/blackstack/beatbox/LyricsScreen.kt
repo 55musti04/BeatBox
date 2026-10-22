@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
@@ -86,20 +87,20 @@ fun LyricsScreen(
     val infiniteTransition = rememberInfiniteTransition(label = "apple_lyrics_ambient")
     val ambientScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.06f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
-            tween<Float>(4500),
-            RepeatMode.Reverse
+            animation = tween<Float>(5000),
+            repeatMode = RepeatMode.Reverse
         ),
         label = "ambient_scale"
     )
 
     // Slow panning light sweep across the artwork
     val sweep by infiniteTransition.animateFloat(
-        initialValue = -200f,
-        targetValue = 400f,
+        initialValue = -300f,
+        targetValue = 500f,
         animationSpec = infiniteRepeatable(
-            tween(8000),
+            tween<Float>(10000),
             RepeatMode.Reverse
         ),
         label = "light_sweep"
@@ -147,7 +148,7 @@ fun LyricsScreen(
                     Brush.linearGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color.White.copy(alpha = 0.06f),
+                            Color.White.copy(alpha = 0.05f),
                             Color.Transparent
                         )
                     )
@@ -434,7 +435,7 @@ private fun AppleStyleLyricsContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 170.dp, bottom = 300.dp, start = 24.dp, end = 24.dp),
         horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(lyrics.lines.size, key = { it -> it }) { index ->
             val line = lyrics.lines[index]
@@ -444,13 +445,14 @@ private fun AppleStyleLyricsContent(
             val nextTimestamp = if (index < lyrics.lines.size - 1) lyrics.lines[index + 1].timestampMs else line.timestampMs + 4000L
             val lineDurationMs = (nextTimestamp - line.timestampMs).coerceAtLeast(1000L)
 
-            // Entrance animation: every line fades in and slides up slightly
+            // Staggered entrance: each line fades/slides in slightly after the previous one
             AnimatedVisibility(
                 visible = true,
-                enter = fadeIn(animationSpec = tween<Float>(350))
+                enter = fadeIn(animationSpec = tween<Float>(400 + (index * 60)))
             ) {
                 AppleStyleLyricsLine(
                     line = line,
+                    lineIndex = index,
                     isCurrent = isCurrent,
                     isPast = isPast,
                     currentPositionMs = currentPositionMs,
@@ -507,41 +509,41 @@ private fun FlowingKaraokeText(
             // Active word: theme color, lifts up and pulses softly
             val wordScale by animateFloatAsState(
                 targetValue = when {
-                    isWordActive -> 1.14f
+                    isWordActive -> 1.16f
                     isWordPast -> 1.0f
-                    else -> 0.94f
+                    else -> 0.93f
                 },
                 animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
                 ),
                 label = "word_scale_${index}_${word.hashCode()}"
             )
 
             val wordOffsetY by animateFloatAsState(
-                targetValue = if (isWordActive) -6f else 0f,
+                targetValue = if (isWordActive) -8f else 0f,
                 animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
                 ),
                 label = "word_offset_${index}_${word.hashCode()}"
             )
 
-            // Active word also pulses its alpha for a "breathing" feel
+            // Active word breathes with a gentle alpha pulse
             val wordPulse by animateFloatAsState(
-                targetValue = if (isWordActive) 1f else 0.85f,
-                animationSpec = tween<Float>(250),
+                targetValue = if (isWordActive) 1f else 0.82f,
+                animationSpec = tween<Float>(300),
                 label = "word_pulse_${index}_${word.hashCode()}"
             )
 
-            // Character by character annotated string inside word
-            val annotatedWord = remember(word, intCharIndex) {
+            // Character by character: sung chars light up, future chars stay dimmed
+            val animatedWord = remember(word, intCharIndex, wordStartChar) {
                 buildAnnotatedString {
                     for (i in word.indices) {
                         val absoluteCharIndex = wordStartChar + i
                         when {
-                            absoluteCharIndex <= intCharIndex -> {
-                                // Sung character: theme color, bold
+                            absoluteCharIndex < intCharIndex -> {
+                                // Fully sung: theme color, bold, with soft shadow
                                 withStyle(
                                     style = SpanStyle(
                                         color = if (isWordActive) primaryColor else Color.White,
@@ -551,11 +553,23 @@ private fun FlowingKaraokeText(
                                     append(word[i])
                                 }
                             }
-                            else -> {
-                                // Future character: dimmed
+                            absoluteCharIndex == intCharIndex && isWordActive -> {
+                                // Currently singing character: brightest, biggest
                                 withStyle(
                                     style = SpanStyle(
-                                        color = Color.White.copy(alpha = 0.30f),
+                                        color = primaryColor,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 32.sp
+                                    )
+                                ) {
+                                    append(word[i])
+                                }
+                            }
+                            else -> {
+                                // Future: dimmed, small
+                                withStyle(
+                                    style = SpanStyle(
+                                        color = Color.White.copy(alpha = 0.25f),
                                         fontWeight = FontWeight.Medium
                                     )
                                 ) {
@@ -579,9 +593,9 @@ private fun FlowingKaraokeText(
                     .padding(end = 12.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 Text(
-                    text = annotatedWord,
+                    text = animatedWord,
                     fontSize = 30.sp,
-                    lineHeight = 40.sp
+                    lineHeight = 42.sp
                 )
             }
         }
@@ -591,6 +605,7 @@ private fun FlowingKaraokeText(
 @Composable
 private fun AppleStyleLyricsLine(
     line: SyncedLyricsLine,
+    lineIndex: Int,
     isCurrent: Boolean,
     isPast: Boolean,
     currentPositionMs: Long,
@@ -601,27 +616,27 @@ private fun AppleStyleLyricsLine(
     val alpha by animateFloatAsState(
         targetValue = when {
             isCurrent -> 1f
-            isPast -> 0.40f
-            else -> 0.50f
+            isPast -> 0.38f
+            else -> 0.52f
         },
-        animationSpec = tween<Float>(450),
+        animationSpec = tween<Float>(500),
         label = "line_alpha_${line.timestampMs}"
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isCurrent) 1.06f else 0.95f,
+        targetValue = if (isCurrent) 1.05f else 0.94f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium
         ),
         label = "line_scale_${line.timestampMs}"
     )
 
-    // Gentle glow pulse on the current line only
+    // Gentle, slow glow pulse on the current line only (organic breathing)
     val glow by animateFloatAsState(
         targetValue = if (isCurrent) 1f else 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween<Float>(1600),
+            animation = tween<Float>(2400),
             repeatMode = RepeatMode.Reverse
         ),
         label = "line_glow_${line.timestampMs}"
@@ -645,22 +660,22 @@ private fun AppleStyleLyricsLine(
             }
     ) {
         if (isCurrent) {
-            // Soft primary-color glow behind the current line
+            // Soft primary-color glow behind the current line - slow breathing
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
+                    .height(64.dp)
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
-                                primaryColor.copy(alpha = 0.14f * glow),
+                                primaryColor.copy(alpha = 0.12f * glow),
                                 Color.Transparent,
-                                primaryColor.copy(alpha = 0.14f * glow)
+                                primaryColor.copy(alpha = 0.12f * glow)
                             )
                         ),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
-                    .padding(vertical = 6.dp)
+                    .padding(vertical = 8.dp)
             )
         }
 
@@ -668,7 +683,7 @@ private fun AppleStyleLyricsLine(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
-                modifier = Modifier.padding(vertical = 10.dp)
+                modifier = Modifier.padding(vertical = 12.dp)
             ) {
                 if (isCurrent) {
                     CircularProgressIndicator(
@@ -700,7 +715,7 @@ private fun AppleStyleLyricsLine(
                 fontSize = 23.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Start,
-                lineHeight = 32.sp,
+                lineHeight = 34.sp,
                 modifier = Modifier.fillMaxWidth()
             )
         }
