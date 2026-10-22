@@ -427,7 +427,6 @@ private fun AppleStyleLyricsContent(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowingKaraokeText(
     text: String,
@@ -452,10 +451,14 @@ private fun FlowingKaraokeText(
         (progress * totalChars).toInt().coerceIn(0, totalChars)
     }
 
-    FlowRow(
+    // Row used instead of FlowRow: FlowRow's newer overloads (with
+    // FlowRowOverflow) are not reliably present across foundation-layout
+    // versions, which caused a NoSuchMethodError on release builds. Row is
+    // stable since Compose 1.0 and never crashes at runtime.
+    Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
-        verticalArrangement = Arrangement.Center
+        verticalAlignment = Alignment.CenterVertically
     ) {
         words.forEachIndexed { index, word ->
             val range = wordRanges[index]
