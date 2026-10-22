@@ -1,5 +1,7 @@
 package com.blackstack.beatbox
 
+import androidx.core.net.toUri
+import androidx.core.content.edit
 import android.content.Context
 import android.content.ContentValues
 import android.media.MediaScannerConnection
@@ -49,7 +51,7 @@ object OnlineAudioManager {
                 title = title,
                 artist = artist,
                 duration = duration,
-                uri = Uri.parse(url),
+                uri = url.toUri(),
                 albumId = -1L,
                 folderName = "Online",
                 dateAdded = System.currentTimeMillis(),
@@ -72,13 +74,13 @@ object OnlineAudioManager {
         val id = -System.currentTimeMillis()
         val row = "$id::$title::$artist::$url::${artworkUrl.orEmpty()}::$durationMs"
         val next = if (current.isBlank()) row else "$current|||$row"
-        prefs.edit().putString(ONLINE_TRACKS_PREF_KEY, next).apply()
+        prefs.edit { putString(ONLINE_TRACKS_PREF_KEY, next) }
         return AudioFile(
             id = id,
             title = title,
             artist = artist,
             duration = durationMs,
-            uri = Uri.parse(url),
+            uri = url.toUri(),
             albumId = -1L,
             folderName = "Online",
             dateAdded = System.currentTimeMillis(),

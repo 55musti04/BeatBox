@@ -12,6 +12,9 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -24,12 +27,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.automirrored.rounded.*
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.blur
@@ -47,226 +54,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.palette.graphics.Palette
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.sin
 import kotlin.math.abs
 import kotlin.random.Random
-
-@Composable
-fun EnhancedRealTimeVisualizer(
-    isPlaying: Boolean,
-    level: Float,
-    waveform: FloatArray,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE) }
-    val tempoVizEnabled = remember { prefs.getBoolean("tempo_visualization", true) }
-    val performanceMode = remember { prefs.getBoolean("performance_mode", false) }
-    
-    val infiniteTransition = rememberInfiniteTransition(label = "tempo_fallback")
-    val fallbackPhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "tempo_phase"
-    )
-
-    if (!tempoVizEnabled) {
-        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            repeat(12) { index ->
-                val staticHeight = when {
-                    index < 3 -> 24.dp
-                    index < 6 -> 20.dp
-                    index < 9 -> 16.dp
-                    else -> 12.dp
-                }
-                Box(
-                    Modifier
-                        .padding(horizontal = 1.5.dp)
-                        .width(4.dp)
-                        .height(if (isPlaying) staticHeight else 8.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.secondary,
-                                    MaterialTheme.colorScheme.primary
-                                )
-                            ),
-                            RoundedCornerShape(2.dp)
-                        )
-                )
-            }
-        }
-        return
-    }
-    
-    val barCount = if (performanceMode) 10 else 14
-    val hasRealData = isPlaying && waveform.any { it > 0.01f }
-
-    Row(
-        modifier = modifier.graphicsLayer { },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        repeat(barCount) { index ->
-            val targetAmplitude = if (isPlaying) {
-                if (hasRealData && index < waveform.size) {
-                    (waveform[index] * 2.8f).coerceIn(0f, 1f)
-                } else {
-                    val sineVal = sin(fallbackPhase + index * 0.45f)
-                    val baseAmp = (sineVal + 1f) / 2f
-                    (0.25f + baseAmp * 0.7f).coerceIn(0.15f, 1f)
-                }
-            } else {
-                0.05f
-            }
-            
-            val amplitude by animateFloatAsState(
-                targetValue = targetAmplitude,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                label = "bar_amplitude_$index"
-            )
-            
-            val centerDistance = abs(index - barCount / 2f) / (barCount / 2f)
-            val baseHeight = 6f
-            val maxHeight = (38f - centerDistance * 14f).coerceAtLeast(20f)
-            
-            val height = if (isPlaying) {
-                (baseHeight + amplitude * (maxHeight - baseHeight)).dp
-            } else {
-                8.dp
-            }
-            
-            val alpha = if (isPlaying) {
-                (0.65f + amplitude * 0.35f).coerceIn(0.65f, 1f)
-            } else {
-                0.35f
-            }
-            
-            Box(
-                Modifier
-                    .padding(horizontal = 1.5.dp)
-                    .width(4.5.dp)
-                    .height(height)
-                    .graphicsLayer { }
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.secondary.copy(alpha = alpha),
-                                MaterialTheme.colorScheme.primary.copy(alpha = alpha),
-                                MaterialTheme.colorScheme.primary.copy(alpha = alpha * 0.5f)
-                            )
-                        ),
-                        RoundedCornerShape(3.dp)
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-fun MusicVisualizer(
-    isPlaying: Boolean,
-    level: Float,
-    waveform: FloatArray,
-    modifier: Modifier = Modifier
-) {
-    // Real-time audio visualizer with actual waveform data
-    EnhancedRealTimeVisualizer(isPlaying, level, waveform, modifier)
-}
-
-@Composable
-private fun ModernBottomNavigationItem(
-    selected: Boolean,
-    onClick: () -> Unit,
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "nav_icon_scale"
-    )
-
-    val iconColor by animateColorAsState(
-        targetValue = if (selected) primaryColor else unselectedColor,
-        animationSpec = tween(300),
-        label = "nav_icon_color"
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() }
-            .background(
-                if (selected) primaryColor.copy(alpha = 0.18f) else Color.Transparent,
-                RoundedCornerShape(22.dp)
-            )
-            .then(
-                if (selected) Modifier.border(
-                    width = 1.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            primaryColor.copy(alpha = 0.5f),
-                            primaryColor.copy(alpha = 0.2f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(22.dp)
-                ) else Modifier
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconColor,
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        scaleX = iconScale
-                        scaleY = iconScale
-                    }
-            )
-            AnimatedVisibility(
-                visible = selected,
-                enter = fadeIn(tween(250)) + expandHorizontally(tween(300)),
-                exit = fadeOut(tween(200)) + shrinkHorizontally(tween(250))
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = label,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = primaryColor,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -295,17 +97,44 @@ fun BeatBoxApp(
                 ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         )
     }
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms -> hasPermission = perms.all { it.value } }
+    // Tempo visualization toggle state (tempo-based visualizations).
+    // Declared before the launchers because the microphone launcher callback
+    // has to be able to turn it back on.
+    var tempoViz by remember {
+        mutableStateOf(
+            prefs.getBoolean("tempo_visualization", true) &&
+            !prefs.getBoolean("performance_mode", false) // Disable if performance mode is on
+        )
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
+        // Only the audio library permission gates the app. Denying the
+        // notification permission must not lock the user out of their music.
+        val audioGranted = perms.entries.any { (permission, granted) ->
+            granted && (permission == Manifest.permission.READ_MEDIA_AUDIO ||
+                permission == Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        if (audioGranted) hasPermission = true
+    }
+
+    // The microphone is only used by the waveform visualiser, so it is
+    // requested on demand instead of being bundled into the startup request.
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            prefs.edit { putBoolean("tempo_visualization", true) }
+            tempoViz = true
+        }
+    }
 
     if (showOnboarding) {
         OnboardingScreen(strings) {
             showOnboarding = false
-            prefs.edit().putBoolean("first_launch", false).apply()
+            prefs.edit { putBoolean("first_launch", false) }
             if (!hasPermission) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.RECORD_AUDIO))
+                    permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS))
                 } else {
-                    permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO))
+                    permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
                 }
             }
         }
@@ -317,13 +146,6 @@ fun BeatBoxApp(
     var selectedFolders by remember { mutableStateOf(player.loadSelectedFolders()) }
     var minDurationSeconds by remember { mutableIntStateOf(player.loadMinDurationSetting()) }
     var isLoading by remember { mutableStateOf(true) }
-    // Tempo visualization toggle state (tempo-based visualizations)
-    var tempoViz by remember { 
-        mutableStateOf(
-            prefs.getBoolean("tempo_visualization", true) && 
-            !prefs.getBoolean("performance_mode", false) // Disable if performance mode is on
-        ) 
-    }
 
     fun reloadLibrary() {
         if (!hasPermission) return
@@ -631,7 +453,7 @@ fun BeatBoxApp(
                                     Spacer(Modifier.width(12.dp))
                                     Column {
                                         Text(
-                                            text = String.format("%02d:%02d", player.sleepTimerMinutes, player.sleepTimerSeconds),
+                                            text = String.format(java.util.Locale.getDefault(), "%02d:%02d", player.sleepTimerMinutes, player.sleepTimerSeconds),
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontSize = 18.sp
@@ -784,9 +606,9 @@ fun BeatBoxApp(
                 if (!hasPermission) {
                     PermissionScreen(strings) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                            permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.RECORD_AUDIO))
+                            permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS))
                         else
-                            permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO))
+                            permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
                     }
                 } else if (isLoading) {
                     Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
@@ -1058,6 +880,7 @@ fun BeatBoxApp(
                                         items(sorted, key = { it.id }) { a ->
                                             SongItem(
                                                 a = a,
+                                                strings = strings,
                                                 isCurrent = currentAudio?.id == a.id,
                                                 isPlaying = isPlaying,
                                                 isFavorite = favoriteIds.contains(a.id.toString()),
@@ -1162,13 +985,9 @@ fun BeatBoxApp(
                             var m by remember { mutableStateOf(false) }
                             
                             // Get system language outside of dialog
-                            val systemLang = remember {
-                                val systemLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                    ctx.resources.configuration.locales[0].language
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    ctx.resources.configuration.locale.language
-                                }
+                            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                            val systemLang = remember(configuration) {
+                                val systemLocale = configuration.locales[0].language
                                 when (systemLocale.lowercase()) {
                                     "tr" -> AppLanguage.TR
                                     "en" -> AppLanguage.EN
@@ -1306,22 +1125,42 @@ fun BeatBoxApp(
                             }
                         }
                         // Tempo Visualization Toggle
-                        item { SettingsToggleItem(Icons.Rounded.Tune, strings.get("tempo_visualization"), tempoViz) { v -> tempoViz = v; prefs.edit().putBoolean("tempo_visualization", v).apply() } }
+                        item {
+                            SettingsToggleItem(Icons.Rounded.Tune, strings.get("tempo_visualization"), tempoViz) { v ->
+                                if (v) {
+                                    // The waveform visualiser reads the live
+                                    // microphone input, so the permission is
+                                    // asked for at the moment the user opts in.
+                                    val needsMic = ContextCompat.checkSelfPermission(
+                                        ctx, Manifest.permission.RECORD_AUDIO
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                    if (needsMic) {
+                                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    } else {
+                                        tempoViz = true
+                                        prefs.edit { putBoolean("tempo_visualization", true) }
+                                    }
+                                } else {
+                                    tempoViz = false
+                                    prefs.edit { putBoolean("tempo_visualization", false) }
+                                }
+                            }
+                        }
                         // Performance Mode Toggle
                         item { 
                             var performanceMode by remember { mutableStateOf(prefs.getBoolean("performance_mode", false)) }
                             SettingsToggleItem(Icons.Rounded.Speed, strings.get("performance_mode"), performanceMode) { v -> 
                                 performanceMode = v
-                                prefs.edit().putBoolean("performance_mode", v).apply()
+                                prefs.edit { putBoolean("performance_mode", v) }
                                 if (v) {
                                     tempoViz = false
-                                    prefs.edit().putBoolean("tempo_visualization", false).apply()
+                                    prefs.edit { putBoolean("tempo_visualization", false) }
                                 }
                             }
                         }
                         item { Spacer(Modifier.height(16.dp)); SettingsHeader(strings.get("audio")) }
-                        item { var s by remember { mutableStateOf(prefs.getBoolean("shake_to_shuffle", true)) }; SettingsToggleItem(Icons.Rounded.Shuffle, strings.get("shake_to_shuffle"), s) { s = it; prefs.edit().putBoolean("shake_to_shuffle", it).apply() } }
-                        item { var c by remember { mutableStateOf(prefs.getBoolean("crossfade_enabled", true)) }; SettingsToggleItem(Icons.Rounded.SwapHoriz, strings.get("crossfade"), c) { c = it; prefs.edit().putBoolean("crossfade_enabled", it).apply() } }
+                        item { var s by remember { mutableStateOf(prefs.getBoolean("shake_to_shuffle", true)) }; SettingsToggleItem(Icons.Rounded.Shuffle, strings.get("shake_to_shuffle"), s) { s = it; prefs.edit { putBoolean("shake_to_shuffle", it) } } }
+                        item { var c by remember { mutableStateOf(prefs.getBoolean("crossfade_enabled", true)) }; SettingsToggleItem(Icons.Rounded.SwapHoriz, strings.get("crossfade"), c) { c = it; prefs.edit { putBoolean("crossfade_enabled", it) } } }
                         item {
                             var keepScreenOn by remember { mutableStateOf(prefs.getBoolean("keep_screen_on", false)) }
                             SettingsToggleItem(Icons.Rounded.ScreenLockLandscape, strings.get("keep_screen_on"), keepScreenOn) { v ->
@@ -1757,6 +1596,7 @@ fun BeatBoxApp(
                             items(songs) { a ->
                                 SongItem(
                                     a = a,
+                                    strings = strings,
                                     isCurrent = currentAudio?.id == a.id,
                                     isPlaying = isPlaying,
                                     isFavorite = favoriteIds.contains(a.id.toString()),
@@ -2218,7 +2058,7 @@ fun BeatBoxApp(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = String.format("%02d:00", m),
+                                    text = String.format(java.util.Locale.getDefault(), "%02d:00", m),
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -2373,7 +2213,7 @@ fun BeatBoxApp(
                 confirmButton = {
                     if (historySongs.isNotEmpty()) {
                         TextButton(onClick = {
-                            prefs.edit().remove("stats_history").apply()
+                            prefs.edit { remove("stats_history") }
                             showHistoryDialog = false
                         }) {
                             Text("Geçmişi Temizle", color = Color.Red)
@@ -2461,745 +2301,8 @@ fun BeatBoxApp(
                 }
             )
         }
-        }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AuthDialog(
-    strings: Strings,
-    onDismiss: () -> Unit,
-    onLoginSuccess: (UserProfile) -> Unit
-) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Register
-
-    // Login Form states
-    var emailOrPhone by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    // Register Form states
-    var name by remember { mutableStateOf("") }
-    var regEmail by remember { mutableStateOf("") }
-    var regPhone by remember { mutableStateOf("") }
-    var regPassword by remember { mutableStateOf("") }
-
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        dismissButton = {},
-        title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier.size(52.dp).background(MaterialTheme.colorScheme.primary.copy(0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (selectedTab == 0) "BeatBox'a Giriş Yap" else "BeatBox'a Kayıt Ol",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                // Tab Row for Login / Register
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0; errorMessage = null },
-                        text = { Text("Giriş Yap", fontWeight = FontWeight.Bold) }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1; errorMessage = null },
-                        text = { Text("Kayıt Ol", fontWeight = FontWeight.Bold) }
-                    )
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                if (errorMessage != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-                    ) {
-                        Text(
-                            errorMessage!!,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
-                }
-
-                if (selectedTab == 0) {
-                    // Login Form
-                    OutlinedTextField(
-                        value = emailOrPhone,
-                        onValueChange = { emailOrPhone = it },
-                        label = { Text("E-posta veya Telefon") },
-                        leadingIcon = { Icon(Icons.Rounded.Email, null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Şifre") },
-                        leadingIcon = { Icon(Icons.Rounded.Lock, null) },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                    null
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    Button(
-                        onClick = {
-                            if (emailOrPhone.isBlank() || password.isBlank()) {
-                                errorMessage = "Lütfen e-posta/telefon ve şifrenizi girin."
-                            } else {
-                                val isPhone = emailOrPhone.all { it.isDigit() || it == '+' || it == ' ' }
-                                val user = UserProfile(
-                                    displayName = emailOrPhone.substringBefore("@").ifBlank { "BeatBox Kullanıcısı" },
-                                    email = if (!isPhone) emailOrPhone else "",
-                                    phoneNumber = if (isPhone) emailOrPhone else "",
-                                    isLoggedIn = true,
-                                    authProvider = if (isPhone) AuthProvider.PHONE else AuthProvider.EMAIL
-                                )
-                                onLoginSuccess(user)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Giriş Yap", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    // Guest Login Option
-                    OutlinedButton(
-                        onClick = {
-                            val guestUser = UserProfile(
-                                displayName = "Misafir Kullanıcı",
-                                isLoggedIn = true,
-                                authProvider = AuthProvider.GUEST
-                            )
-                            onLoginSuccess(guestUser)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Misafir Olarak Devam Et", fontSize = 13.sp)
-                    }
-                } else {
-                    // Register Form
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Ad Soyad") },
-                        leadingIcon = { Icon(Icons.Rounded.Person, null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-
-                    OutlinedTextField(
-                        value = regEmail,
-                        onValueChange = { regEmail = it },
-                        label = { Text("E-posta Adresi") },
-                        leadingIcon = { Icon(Icons.Rounded.Email, null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-
-                    OutlinedTextField(
-                        value = regPhone,
-                        onValueChange = { regPhone = it },
-                        label = { Text("Telefon (Opsiyonel)") },
-                        leadingIcon = { Icon(Icons.Rounded.Phone, null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-
-                    OutlinedTextField(
-                        value = regPassword,
-                        onValueChange = { regPassword = it },
-                        label = { Text("Şifre") },
-                        leadingIcon = { Icon(Icons.Rounded.Lock, null) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    Button(
-                        onClick = {
-                            if (name.isBlank() || regEmail.isBlank() || regPassword.isBlank()) {
-                                errorMessage = "Lütfen zorunlu alanları doldurun."
-                            } else {
-                                val newUser = UserProfile(
-                                    displayName = name,
-                                    email = regEmail,
-                                    phoneNumber = regPhone,
-                                    isLoggedIn = true,
-                                    authProvider = AuthProvider.EMAIL
-                                )
-                                onLoginSuccess(newUser)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Kayıt Ol", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
-                }
-            }
-        }
-    )
-}
-
-@Composable
-fun ProfileDialog(
-    user: UserProfile,
-    avatarIcons: List<ImageVector>,
-    onDismiss: () -> Unit,
-    onSaveProfile: (UserProfile) -> Unit,
-    onLogout: () -> Unit
-) {
-    var displayName by remember { mutableStateOf(user.displayName) }
-    var bio by remember { mutableStateOf(user.bio) }
-    var email by remember { mutableStateOf(user.email) }
-    var phone by remember { mutableStateOf(user.phoneNumber) }
-    var avatarId by remember { mutableIntStateOf(user.avatarId) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(
-                onClick = {
-                    val updated = user.copy(
-                        displayName = displayName.ifBlank { "BeatBox Dinleyicisi" },
-                        bio = bio,
-                        email = email,
-                        phoneNumber = phone,
-                        avatarId = avatarId
-                    )
-                    onSaveProfile(updated)
-                    onDismiss()
-                },
-                modifier = Modifier.buttonShadow()
-            ) {
-                Text("Kaydet", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = {
-                    onLogout()
-                    onDismiss()
-                }
-            ) {
-                Text("Çıkış Yap", color = Color.Red, fontWeight = FontWeight.Bold)
-            }
-        },
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        avatarIcons.getOrElse(avatarId) { Icons.Rounded.Person },
-                        null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("Profil Düzenle", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Oturum: ${user.authProvider.label}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Avatar Seçin", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    avatarIcons.forEachIndexed { index, icon ->
-                        val isSelected = avatarId == index
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { avatarId = index },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                icon,
-                                null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = displayName,
-                    onValueChange = { displayName = it },
-                    label = { Text("Görünen Ad") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = bio,
-                    onValueChange = { bio = it },
-                    label = { Text("Hakkımda / Bio") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("E-posta") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Telefon") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // VIP Status Badge Card
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(0.3f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFD700), modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text("BeatBox VIP Premium 🌟", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                            Text("Sınırsız müzik & kayıpsız ses aktif", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(0.7f))
-                        }
-                    }
-                }
-            }
-        }
-    )
-}
-
-@Composable
-fun HomeScreen(
-    allAudioList: List<AudioFile>,
-    favoriteIds: Set<String>,
-    playlists: List<Playlist>,
-    currentAudioId: Long?,
-    currentAudio: AudioFile?,
-    isPlaying: Boolean,
-    onPlaylistClick: (Playlist) -> Unit,
-    onPlaylistDelete: (String) -> Unit,
-    onPlaylistEdit: (Playlist) -> Unit,
-    onPlaySong: (AudioFile) -> Unit,
-    onShuffleAll: () -> Unit,
-    strings: Strings,
-    ctx: Context,
-    visualizerLevel: Float,
-    visualizerWaveform: FloatArray
-) {
-    val prefs = ctx.getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE)
-    val topSongs = allAudioList.sortedByDescending { prefs.getInt("stats_count_${it.id}", 0) }.take(10)
-    val recentlyAdded = allAudioList.sortedByDescending { it.dateAdded }.take(8)
-    val artistGroups = remember(allAudioList, strings) { groupSongsByArtist(allAudioList, strings.get("unknown_artist")) }
-
-    LazyColumn(
-        contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp, start = 16.dp, end = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        // 1. Hero Welcome Banner Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(16.dp, RoundedCornerShape(28.dp)),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            )
-                        )
-                        .padding(24.dp)
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "BeatBox Müzik",
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                val randomQuote = remember { MusicQuotes.getRandomQuote() }
-                                Text(
-                                    text = randomQuote,
-                                    color = Color.White,
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 2
-                                )
-                            }
-                            IconButton(
-                                onClick = onShuffleAll,
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .background(Color.White.copy(alpha = 0.25f), CircleShape)
-                            ) {
-                                Icon(Icons.Rounded.Shuffle, null, tint = Color.White, modifier = Modifier.size(26.dp))
-                            }
-                        }
-                        Spacer(Modifier.height(20.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color.White.copy(alpha = 0.2f)
-                            ) {
-                                Text(
-                                    text = "${allAudioList.size} ${strings.get("songs")}",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color.White.copy(alpha = 0.2f)
-                            ) {
-                                Text(
-                                    text = "${playlists.size} ${strings.get("playlists")}",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Most Played Section Header & Carousel
-        if (topSongs.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.AutoMirrored.Rounded.TrendingUp, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = strings.get("most_played"),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) {
-                    items(topSongs) { song ->
-                        val isCurrent = song.id == currentAudioId
-                        Card(
-                            modifier = Modifier
-                                .width(135.dp)
-                                .clickable { onPlaySong(song) }
-                                .shadow(8.dp, RoundedCornerShape(20.dp)),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.35f))
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(115.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                ) {
-                                    AlbumArtImage(song, Modifier.fillMaxSize(), isHQ = true)
-                                    if (isCurrent && isPlaying) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color.Black.copy(alpha = 0.5f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            MusicVisualizer(true, visualizerLevel, visualizerWaveform, Modifier.height(18.dp))
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = song.title,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = song.artist,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(0.6f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Featured Artists Row (Internet Artist Photos)
-        if (artistGroups.isNotEmpty()) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Person, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = strings.get("artist"),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) {
-                    items(artistGroups.entries.take(10).toList()) { (artistName, songs) ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.width(90.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .shadow(6.dp, CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(0.1f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                ArtistImage(
-                                    artistName = artistName,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = artistName,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                textAlign = TextAlign.Center,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "${songs.size} ${strings.get("songs")}",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(0.6f),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. Recently Added Section Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.NewReleases, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = strings.get("recently_added"),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-
-        items(recentlyAdded) { song ->
-            val isCurrent = song.id == currentAudioId
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPlaySong(song) }
-                    .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = if (isCurrent)
-                    MaterialTheme.colorScheme.primaryContainer.copy(0.4f)
-                else
-                    MaterialTheme.colorScheme.surfaceVariant.copy(0.3f),
-                shadowElevation = if (isCurrent) 4.dp else 2.dp
-            ) {
-                Row(
-                    Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box {
-                        AlbumArtImage(song, Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)), isHQ = true)
-                        if (isCurrent && isPlaying) {
-                            Box(
-                                Modifier
-                                    .size(56.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.Black.copy(alpha = 0.5f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                MusicVisualizer(true, visualizerLevel, visualizerWaveform, Modifier.height(16.dp))
-                            }
-                        }
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = song.artist,
-                            fontSize = 13.sp,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(0.7f) else Color.Gray,
-                            maxLines = 1
-                        )
-                    }
-                    if (isCurrent && isPlaying) {
-                        MusicVisualizer(isPlaying, visualizerLevel, visualizerWaveform, modifier = Modifier.height(28.dp).padding(end = 8.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullScreenPlayer(
     player: MainActivity,
@@ -3566,7 +2669,7 @@ fun FullScreenPlayer(
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                text = "${formatTime(c.duration)} • HQ AUDIO",
+                                text = "${formatTime(c.duration)} ÔÇó HQ AUDIO",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground.copy(0.85f)
@@ -3654,7 +2757,7 @@ fun FullScreenPlayer(
                                 putExtra(Intent.EXTRA_SUBJECT, "${a.title} - ${a.artist}")
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    "🎵 BeatBox'ta dinliyorum:\n\"${a.title}\" - ${a.artist}\n\n#BeatBox #Music"
+                                    "­şÄÁ BeatBox'ta dinliyorum:\n\"${a.title}\" - ${a.artist}\n\n#BeatBox #Music"
                                 )
                             }
                             context.startActivity(Intent.createChooser(shareIntent, strings.get("share_song")))
@@ -4041,6 +3144,7 @@ fun FullScreenPlayer(
     }
 }
 
+}
 @Composable
 private fun InfoDetailRow(label: String, value: String) {
     Column {

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,18 +7,38 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/**
+ * API anahtarları kaynak kontrolüne giremez.
+ *
+ * Kaynak sırası:
+ *   1. local.properties -> MUSIXMATCH_API_KEY=...
+ *   2. Ortam değişkeni   -> MUSIXMATCH_API_KEY=...
+ *   3. Hiçbiri yoksa boş string (uygulama çalışır, Musixmatch sağlayıcısı devre dışı kalır)
+ *
+ * local.properties zaten .gitignore içinde.
+ */
+val musixmatchApiKey: String = run {
+    val localProperties = Properties().apply {
+        val file = rootProject.file("local.properties")
+        if (file.exists()) file.inputStream().use { load(it) }
+    }
+    localProperties.getProperty("MUSIXMATCH_API_KEY")
+        ?: providers.environmentVariable("MUSIXMATCH_API_KEY").orNull
+        ?: ""
+}.replace("\\", "\\\\").replace("\"", "\\\"")
+
 ksp {
     arg("room.generateKotlin", "true")
 }
 
 android {
     namespace = "com.blackstack.beatbox"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.blackstack.beatbox"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 3
         versionName = "3.0"
 
@@ -24,7 +46,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "MUSIXMATCH_API_KEY", "\"2001c5f2bfef4e74cfd4a7504b96d986\"")
+        buildConfigField("String", "MUSIXMATCH_API_KEY", "\"$musixmatchApiKey\"")
     }
 
     buildTypes {
@@ -46,22 +68,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-    
+
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()
@@ -69,33 +85,40 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
     // Core Library Desugaring (required when isCoreLibraryDesugaringEnabled = true)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    
+
     // Core Android
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.activity.compose)
 
     // Compose BOM
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.foundation:foundation")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.foundation)
 
     // Media
-    implementation("androidx.media:media:1.7.0")
+    implementation(libs.androidx.media)
 
     // Palette (for dynamic colors from album art)
-    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation(libs.androidx.palette)
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("net.jthink:jaudiotagger:3.0.1")
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.jaudiotagger)
 
     // Room Database
     implementation(libs.androidx.room.runtime)
@@ -109,22 +132,18 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     // Testing
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("io.kotest:kotest-runner-junit5:5.8.0")
-    testImplementation("io.kotest:kotest-assertions-core:5.8.0")
-    testImplementation("io.kotest:kotest-property:5.8.0")
-    testImplementation("io.mockk:mockk:1.13.8")
-    testImplementation("io.mockk:mockk-android:1.13.8")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("io.kotest:kotest-assertions-core:5.8.0")
-    androidTestImplementation("io.kotest:kotest-property:5.8.0")
-    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-
-
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.property)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(libs.kotest.assertions.core)
+    androidTestImplementation(libs.kotest.property)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }

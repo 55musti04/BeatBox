@@ -1,5 +1,7 @@
 package com.blackstack.beatbox
 
+import androidx.core.graphics.toColorInt
+import androidx.core.content.edit
 import android.annotation.SuppressLint
 import android.content.*
 import android.content.pm.ActivityInfo
@@ -112,7 +114,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     val f = getFavorites().toMutableSet()
                     if (f.contains(audio.id.toString())) {
                         f.remove(audio.id.toString())
-                        prefs.edit().putStringSet("favorite_ids", f).apply()
+                        prefs.edit { putStringSet("favorite_ids", f) }
                     }
                     true
                 } else false
@@ -189,7 +191,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     fun setKeepScreenOn(enabled: Boolean) {
-        prefs.edit().putBoolean("keep_screen_on", enabled).apply()
+        prefs.edit { putBoolean("keep_screen_on", enabled) }
         if (enabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
@@ -307,13 +309,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
         
         // Detect system language and set as default
-        val systemLang = remember {
-            val systemLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                resources.configuration.locales[0].language
-            } else {
-                @Suppress("DEPRECATION")
-                resources.configuration.locale.language
-            }
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val systemLang = remember(configuration) {
+            val systemLocale = configuration.locales[0].language
             
             // Map system language to AppLanguage
             when (systemLocale.lowercase()) {
@@ -367,7 +365,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     try {
                         AlbumArtCache.bitmapCache.get(audio.id)?.let { bmp ->
                             val palette = androidx.palette.graphics.Palette.from(bmp).generate()
-                            val dom = palette.getDominantColor(android.graphics.Color.parseColor("#00E5FF"))
+                            val dom = palette.getDominantColor("#00E5FF".toColorInt())
                             withContext(Dispatchers.Main) {
                                 dynamicPrimary = Color(dom)
                             }
@@ -396,8 +394,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         MaterialTheme(colorScheme = finalScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 BeatBoxApp(this@MainActivity, currentTheme, s, lang, visualizerLevel, visualizerWaveform,
-                    { currentTheme = it; prefs.edit().putString("app_theme", it.name).apply() },
-                    { lang = it; prefs.edit().putString("app_lang", it.name).apply() })
+                    { currentTheme = it; prefs.edit { putString("app_theme", it.name) } },
+                    { lang = it; prefs.edit { putString("app_lang", it.name) } })
             }
         }
     }
@@ -425,13 +423,13 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     fun toggleFavorite(audioId: Long) {
         val favs = getFavorites().toMutableSet()
         if (favs.contains(audioId.toString())) favs.remove(audioId.toString()) else favs.add(audioId.toString())
-        prefs.edit().putStringSet("favorite_ids", favs).apply()
+        prefs.edit { putStringSet("favorite_ids", favs) }
     }
     fun getFavorites(): Set<String> = prefs.getStringSet("favorite_ids", emptySet()) ?: emptySet()
     fun isFavorite(audioId: Long): Boolean = getFavorites().contains(audioId.toString())
-    fun saveSelectedFolders(folders: Set<String>) { prefs.edit().putStringSet("selected_folders", folders).apply() }
+    fun saveSelectedFolders(folders: Set<String>) { prefs.edit { putStringSet("selected_folders", folders) } }
     fun loadSelectedFolders(): Set<String> = prefs.getStringSet("selected_folders", emptySet()) ?: emptySet()
-    fun saveMinDurationSetting(seconds: Int) { prefs.edit().putInt("min_duration", seconds).apply() }
+    fun saveMinDurationSetting(seconds: Int) { prefs.edit { putInt("min_duration", seconds) } }
     fun loadMinDurationSetting(): Int = prefs.getInt("min_duration", 30)
     fun savePlaylists(playlists: List<Playlist>) {
         try {
@@ -452,7 +450,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 obj.put("songIds", songIdsArray)
                 jsonArray.put(obj)
             }
-            prefs.edit().putString("playlists_v3", jsonArray.toString()).apply()
+            prefs.edit { putString("playlists_v3", jsonArray.toString(), ) }
         } catch (e: Exception) {
             android.util.Log.e("PlaylistSave", "Error saving playlists", e)
         }
@@ -577,6 +575,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         // Cancel all coroutines
         fadeJob?.cancel()
         sleepTimerJob?.cancel()
+        
+        // Clear service callbacks to avoid leaking the Activity
+        try {
+            musicService?.onSongComplete = null
+            musicService?.onPlaybackStateChanged = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         
         // Unbind service safely
         if (serviceBound) { 

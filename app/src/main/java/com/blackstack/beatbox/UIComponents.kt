@@ -1,5 +1,6 @@
 package com.blackstack.beatbox
 
+import androidx.core.net.toUri
 import android.content.ContentUris
 import android.content.Context
 import android.content.SharedPreferences
@@ -91,79 +92,6 @@ fun GradientBackground(
         Box(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
             content()
         }
-    }
-}
-
-@Composable
-fun GradientCard(
-    theme: AppTheme,
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    content: @Composable () -> Unit
-) {
-    // Cache gradient brush
-    val gradientBrush = remember(theme) {
-        if (theme.isGradient && theme.gradientColors.isNotEmpty()) {
-            Brush.linearGradient(
-                colors = theme.gradientColors.map { it.copy(alpha = 0.1f) },
-                start = Offset(0f, 0f),
-                end = Offset(1000f, 1000f) // Use fixed value for better performance
-            )
-        } else null
-    }
-    
-    if (gradientBrush != null) {
-        Card(
-            modifier = modifier,
-            shape = shape,
-            colors = CardDefaults.cardColors(Color.Transparent)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { } // Hardware acceleration
-                    .background(gradientBrush)
-            ) {
-                content()
-            }
-        }
-    } else {
-        Card(
-            modifier = modifier,
-            shape = shape,
-            colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant.copy(0.3f))
-        ) {
-            content()
-        }
-    }
-}
-
-// Glassmorphic Card Container
-@Composable
-fun GlassmorphicCard(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(22.dp),
-    backgroundColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-    borderColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-    content: @Composable BoxScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .border(
-                width = 1.dp,
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        borderColor,
-                        borderColor.copy(alpha = 0.03f)
-                    )
-                ),
-                shape = shape
-            ),
-        shape = shape,
-        color = backgroundColor,
-        shadowElevation = 8.dp
-    ) {
-        Box(content = content)
     }
 }
 
@@ -674,101 +602,6 @@ data class OnboardingPage(
 )
 
 @Composable
-fun UserAgreementPage(strings: Strings, color: Color, onShowFull: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 60.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Icon
-        Box(
-            modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            color.copy(alpha = 0.3f),
-                            Color.Transparent
-                        )
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Rounded.Description,
-                null,
-                Modifier.size(60.dp),
-                tint = color
-            )
-        }
-        
-        Spacer(Modifier.height(32.dp))
-        
-        Text(
-            strings.get("user_agreement"),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(Modifier.height(24.dp))
-        
-        // Agreement summary card
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White.copy(0.1f)
-        ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
-            ) {
-                Text(
-                    strings.get("user_agreement_short"),
-                    fontSize = 14.sp,
-                    color = Color.White.copy(0.9f),
-                    lineHeight = 20.sp
-                )
-            }
-        }
-        
-        Spacer(Modifier.height(16.dp))
-        
-        // Read full agreement button
-        TextButton(
-            onClick = onShowFull,
-            modifier = Modifier.fillMaxWidth(0.8f)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.Article,
-                    null,
-                    modifier = Modifier.size(20.dp),
-                    tint = color
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    strings.get("read_full_agreement"),
-                    color = color,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun UserAgreementDialog(strings: Strings, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1014,6 +847,7 @@ fun SettingsClickItem(icon: ImageVector, t: String, sub: String? = null, onClick
 @OptIn(ExperimentalFoundationApi::class)
 @Composable fun SongItem(
     a: AudioFile,
+    strings: Strings,
     isCurrent: Boolean,
     isPlaying: Boolean = false,
     isFavorite: Boolean,
@@ -1024,7 +858,6 @@ fun SettingsClickItem(icon: ImageVector, t: String, sub: String? = null, onClick
     onDownload: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val strings = Strings(AppLanguage.TR)
     
     // Modern Glassmorphic card design
     Surface(
@@ -1247,7 +1080,7 @@ private fun formatDuration(millis: Long): String {
     val seconds = (millis / 1000).toInt()
     val minutes = seconds / 60
     val secs = seconds % 60
-    return String.format("%d:%02d", minutes, secs)
+    return String.format(java.util.Locale.getDefault(), "%d:%02d", minutes, secs)
 }
 
 @Composable fun PlaylistItem(p: Playlist, onClick: () -> Unit, onDel: () -> Unit, onEdit: () -> Unit, strings: Strings? = null) {
@@ -1541,7 +1374,7 @@ private fun formatDuration(millis: Long): String {
                 if (a.albumId > 0) {
                     try {
                         val uri = ContentUris.withAppendedId(
-                            Uri.parse("content://media/external/audio/albumart"), 
+                            "content://media/external/audio/albumart".toUri(), 
                             a.albumId
                         )
                         bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -1829,24 +1662,45 @@ fun getThemeColors(t: AppTheme): ColorScheme = when (t) {
     )
 }
 
+/**
+ * Coarse classification of an audio output device.
+ *
+ * Kept separate from [getAudioOutputDeviceName] so that the mapping can be
+ * verified in a plain JVM unit test without an Android Context.
+ */
+enum class AudioOutputKind { BLUETOOTH, HEADPHONES, NONE }
+
+/**
+ * Maps an [AudioDeviceInfo] type constant to an [AudioOutputKind].
+ *
+ * Returns [AudioOutputKind.NONE] for the built-in speaker and for every
+ * device type the app does not want to advertise (for example HDMI or USB
+ * accessories that the user has not selected).
+ */
+fun audioOutputKindFor(deviceType: Int): AudioOutputKind = when (deviceType) {
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+    AudioDeviceInfo.TYPE_BLE_HEADSET,
+    AudioDeviceInfo.TYPE_BLE_SPEAKER -> AudioOutputKind.BLUETOOTH
+
+    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+    AudioDeviceInfo.TYPE_USB_HEADSET,
+    AudioDeviceInfo.TYPE_USB_DEVICE -> AudioOutputKind.HEADPHONES
+
+    else -> AudioOutputKind.NONE
+}
+
 fun getAudioOutputDeviceName(context: Context): String {
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         ?: return "Telefon"
 
     val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
     for (device in devices) {
-        when (device.type) {
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-            AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_BLE_SPEAKER -> return "Bluetooth"
-
-            AudioDeviceInfo.TYPE_WIRED_HEADSET,
-            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-            AudioDeviceInfo.TYPE_USB_HEADSET,
-            AudioDeviceInfo.TYPE_USB_DEVICE -> return "Kulaklık"
-
-            else -> {}
+        when (audioOutputKindFor(device.type)) {
+            AudioOutputKind.BLUETOOTH -> return "Bluetooth"
+            AudioOutputKind.HEADPHONES -> return "Kulaklık"
+            AudioOutputKind.NONE -> {}
         }
     }
 

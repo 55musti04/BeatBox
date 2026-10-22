@@ -9,29 +9,66 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
-# Keep MediaPlayer and audio related classes
--keep class android.media.** { *; }
--keep class androidx.media.** { *; }
+# ---------------------------------------------------------------------------
+# Retrofit / Gson
+# ---------------------------------------------------------------------------
+# Retrofit builds its call adapters by reading the annotations on the
+# interface methods, and Gson resolves JSON properties by field name through
+# reflection. R8 renames both members unless they are kept, which makes every
+# network response deserialize to nulls in release builds.
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepattributes AnnotationDefault
 
-# Keep JAudioTagger classes
--keep class org.jaudiotagger.** { *; }
--dontwarn org.jaudiotagger.**
+# Retrofit service interfaces: keep the members, allow the name to change.
+-if interface * { @retrofit2.http.* public *** *(...); }
+-keep,allowobfuscation interface <1>
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 
-# Keep Compose related classes
--keep class androidx.compose.** { *; }
--dontwarn androidx.compose.**
+# Gson models: every JSON property is annotated with @SerializedName, so the
+# field may be renamed as long as the annotation survives.
+-keepclassmembers,allowobfuscation class com.blackstack.beatbox.** {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
 
-# Keep data classes and models
+# The response models themselves are referenced directly, but keeping them
+# makes the mapping explicit and survives future refactors of the package.
+-keep class com.blackstack.beatbox.TTMLResponse { *; }
+-keep class com.blackstack.beatbox.LRCLIBResponse { *; }
+-keep class com.blackstack.beatbox.LyricsOvhResponse { *; }
+-keep class com.blackstack.beatbox.Musixmatch* { *; }
+-keep class com.blackstack.beatbox.Netease* { *; }
+-keep class com.blackstack.beatbox.Genius* { *; }
+
+# ---------------------------------------------------------------------------
+# Domain models
+# ---------------------------------------------------------------------------
 -keep class com.blackstack.beatbox.AudioFile { *; }
 -keep class com.blackstack.beatbox.Playlist { *; }
 -keep class com.blackstack.beatbox.AppTheme { *; }
 -keep class com.blackstack.beatbox.AppLanguage { *; }
 -keep class com.blackstack.beatbox.EQPreset { *; }
 
-# Keep service classes
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+# The service is referenced from the manifest (kept automatically), but the
+# Binder inner class is only reached through reflection from the Activity.
 -keep class com.blackstack.beatbox.MediaPlaybackService { *; }
 -keep class com.blackstack.beatbox.MediaPlaybackService$MusicBinder { *; }
 
+# ---------------------------------------------------------------------------
+# Third party
+# ---------------------------------------------------------------------------
+# JAudioTagger reads tag fields through reflection.
+-keep class org.jaudiotagger.** { *; }
+-dontwarn org.jaudiotagger.**
+
+# ---------------------------------------------------------------------------
+# General
+# ---------------------------------------------------------------------------
 # Keep enum classes
 -keepclassmembers enum * {
     public static **[] values();

@@ -12,9 +12,12 @@ import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for managing lyrics state and playback synchronization
+ *
+ * The provider is nullable because the database and the DAO are created lazily:
+ * if that fails the screen still has to render an error instead of crashing.
  */
 class LyricsViewModel(
-    private val lyricsProvider: LyricsProvider
+    private val lyricsProvider: LyricsProvider?
 ) : ViewModel() {
     
     private val _lyricsState = MutableStateFlow<LyricsState>(LyricsState.Idle)
@@ -32,8 +35,13 @@ class LyricsViewModel(
     fun loadLyrics(audio: AudioFile) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            val provider = lyricsProvider
+            if (provider == null) {
+                _lyricsState.value = LyricsState.Error("Lyrics service is unavailable")
+                return@launch
+            }
             _lyricsState.value = LyricsState.Loading
-            lyricsProvider.getLyrics(audio).fold(
+            provider.getLyrics(audio).fold(
                 onSuccess = { lyrics ->
                     // Add intro line if first line starts after 1 second (to show something during intro)
                     val modifiedLyrics = if (lyrics.lines.isNotEmpty() && lyrics.lines.first().timestampMs > 1000) {

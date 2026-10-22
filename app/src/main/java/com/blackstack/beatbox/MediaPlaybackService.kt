@@ -1,5 +1,6 @@
 package com.blackstack.beatbox
 
+import androidx.core.net.toUri
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -283,18 +284,17 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     private fun requestAudioFocus(): Boolean {
-        val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val r = run {
             audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                 .setAcceptsDelayedFocusGain(true).setOnAudioFocusChangeListener(this).build()
-            audioManager.requestAudioFocus(audioFocusRequest!!)
-        } else @Suppress("DEPRECATION") audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+            audioFocusRequest?.let { audioManager.requestAudioFocus(it) }
+        }
         return r == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun abandonAudioFocus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        else @Suppress("DEPRECATION") audioManager.abandonAudioFocus(this)
+        audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
     }
 
     override fun onAudioFocusChange(f: Int) {
@@ -370,12 +370,10 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                     
                     // Use prepareAsync instead of prepare to avoid blocking
                     setOnPreparedListener { mp ->
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            try { 
-                                mp.playbackParams = mp.playbackParams.setSpeed(playbackSpeed) 
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
+                        try {
+                            mp.playbackParams = mp.playbackParams.setSpeed(playbackSpeed)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
                         
                         if (crossfade) {
@@ -516,16 +514,14 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
         // Clamp speed to safe range
         val clampedSpeed = speed.coerceIn(0.5f, 2.0f)
         playbackSpeed = clampedSpeed
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try { 
-                mediaPlayer?.let { player ->
-                    if (player.isPlaying) {
-                        player.playbackParams = player.playbackParams.setSpeed(clampedSpeed)
-                    }
+        try {
+            mediaPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.playbackParams = player.playbackParams.setSpeed(clampedSpeed)
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -535,7 +531,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
             android.util.Log.d("BeatBox", "setupEQ - audioSessionId: $s")
             equalizer = Equalizer(0, s).apply { enabled = true }
             bassBoost = BassBoost(0, s).apply { enabled = false }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) loudnessEnhancer = LoudnessEnhancer(s).apply { enabled = false }
+            loudnessEnhancer = LoudnessEnhancer(s).apply { enabled = false }
             // Setup visualizer on background thread to prevent ANR
             serviceScope.launch(Dispatchers.IO) {
                 setupVisualizer(s)
@@ -549,11 +545,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     private fun setupVisualizer(sessionId: Int) {
         try {
             // Check RECORD_AUDIO permission
-            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
+            val hasPermission = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
             
             if (!hasPermission) {
                 android.util.Log.e("BeatBox", "RECORD_AUDIO permission not granted! Visualizer cannot work.")
@@ -680,7 +672,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                 }
                 EQPreset.VOCAL -> equalizer?.let { if (it.numberOfBands >= 5) { it.setBandLevel(2, it.bandLevelRange[1]); it.setBandLevel(3, (it.bandLevelRange[1] * 0.8).toInt().toShort()) } }
                 EQPreset.TREBLE -> equalizer?.let { val n = it.numberOfBands; if (n >= 5) { it.setBandLevel((n - 1).toShort(), it.bandLevelRange[1]); it.setBandLevel((n - 2).toShort(), (it.bandLevelRange[1] * 0.7).toInt().toShort()) } }
-                EQPreset.LOUDNESS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) { loudnessEnhancer?.enabled = true; loudnessEnhancer?.setTargetGain(800) }
+                EQPreset.LOUDNESS -> { loudnessEnhancer?.enabled = true; loudnessEnhancer?.setTargetGain(800) }
                 else -> {}
             }
         } catch (_: Exception) {}
@@ -893,10 +885,8 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Music Playback", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false); lockscreenVisibility = Notification.VISIBILITY_PUBLIC }
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(channelId, "Music Playback", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false); lockscreenVisibility = Notification.VISIBILITY_PUBLIC }
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
     }
 
     private fun buildNotification(audio: AudioFile, playing: Boolean): Notification {
@@ -957,7 +947,7 @@ class MediaPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     private fun loadAlbumArt(audio: AudioFile): Bitmap? {
         return try {
             // First try: Load from album art URI
-            val uri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), audio.albumId)
+            val uri = ContentUris.withAppendedId("content://media/external/audio/albumart".toUri(), audio.albumId)
             val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentResolver.loadThumbnail(uri, android.util.Size(512, 512), null)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

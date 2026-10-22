@@ -1,5 +1,6 @@
 package com.blackstack.beatbox
 
+import androidx.core.content.edit
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -99,7 +100,7 @@ object ArtistImageProvider {
                                     firstArtist.optString("picture_medium", "")
                                 }
                                 if (img.isNotBlank()) {
-                                    prefs.edit().putString(cleanName, img).apply()
+                                    prefs.edit { putString(cleanName, img) }
                                     return@withContext img
                                 }
                             }
@@ -122,7 +123,7 @@ object ArtistImageProvider {
                                 val artwork100 = obj.optString("artworkUrl100", "")
                                 if (artwork100.isNotBlank()) {
                                     val highResUrl = artwork100.replace("100x100bb", "600x600bb")
-                                    prefs.edit().putString(cleanName, highResUrl).apply()
+                                    prefs.edit { putString(cleanName, highResUrl) }
                                     return@withContext highResUrl
                                 }
                             }
@@ -131,7 +132,7 @@ object ArtistImageProvider {
                 }
 
                 // No image found, cache "NONE" to prevent re-querying
-                prefs.edit().putString(cleanName, "NONE").apply()
+                prefs.edit { putString(cleanName, "NONE") }
                 null
             } catch (e: Exception) {
                 Log.w("ArtistImageProvider", "Error fetching artist image for $artistName: ${e.message}")

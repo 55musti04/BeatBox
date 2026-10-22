@@ -1,6 +1,7 @@
 package com.blackstack.beatbox
 
 import android.util.Log
+import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -12,13 +13,22 @@ import retrofit2.http.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
+/*
+ * Every JSON field below is annotated with @SerializedName on purpose.
+ * Gson resolves fields by their *name* via reflection, and R8 renames fields
+ * unless they are kept. Without the annotations the release build silently
+ * deserializes every response to nulls (verified in the built APK: the field
+ * names were absent from classes.dex). Keep the annotation and the value in
+ * sync with the upstream JSON key.
+ */
+
 /**
  * ============================================
  * BetterLyrics API (Boidu Dev - Free TTML Lyrics)
  * ============================================
  */
 data class TTMLResponse(
-    val ttml: String?
+    @SerializedName("ttml") val ttml: String?
 )
 
 interface BetterLyricsApi {
@@ -37,13 +47,13 @@ interface BetterLyricsApi {
  * ============================================
  */
 data class LRCLIBResponse(
-    val id: Long? = null,
-    val trackName: String? = null,
-    val artistName: String? = null,
-    val albumName: String? = null,
-    val duration: Double? = null,
-    val syncedLyrics: String? = null,
-    val plainLyrics: String? = null
+    @SerializedName("id") val id: Long? = null,
+    @SerializedName("trackName") val trackName: String? = null,
+    @SerializedName("artistName") val artistName: String? = null,
+    @SerializedName("albumName") val albumName: String? = null,
+    @SerializedName("duration") val duration: Double? = null,
+    @SerializedName("syncedLyrics") val syncedLyrics: String? = null,
+    @SerializedName("plainLyrics") val plainLyrics: String? = null
 )
 
 interface LRCLIBApi {
@@ -73,7 +83,7 @@ interface LRCLIBApi {
  * ============================================
  */
 data class LyricsOvhResponse(
-    val lyrics: String?
+    @SerializedName("lyrics") val lyrics: String?
 )
 
 interface LyricsOvhApi {
@@ -90,42 +100,42 @@ interface LyricsOvhApi {
  * ============================================
  */
 data class MusixmatchSearchResponse(
-    val message: MusixmatchMessage?
+    @SerializedName("message") val message: MusixmatchMessage?
 )
 
 data class MusixmatchMessage(
-    val body: MusixmatchBody?
+    @SerializedName("body") val body: MusixmatchBody?
 )
 
 data class MusixmatchBody(
-    val track_list: List<MusixmatchTrackWrapper>?
+    @SerializedName("track_list") val track_list: List<MusixmatchTrackWrapper>?
 )
 
 data class MusixmatchTrackWrapper(
-    val track: MusixmatchTrack?
+    @SerializedName("track") val track: MusixmatchTrack?
 )
 
 data class MusixmatchTrack(
-    val track_id: Long?,
-    val track_name: String?,
-    val artist_name: String?,
-    val has_lyrics: Int?
+    @SerializedName("track_id") val track_id: Long?,
+    @SerializedName("track_name") val track_name: String?,
+    @SerializedName("artist_name") val artist_name: String?,
+    @SerializedName("has_lyrics") val has_lyrics: Int?
 )
 
 data class MusixmatchLyricsResponse(
-    val message: MusixmatchLyricsMessage?
+    @SerializedName("message") val message: MusixmatchLyricsMessage?
 )
 
 data class MusixmatchLyricsMessage(
-    val body: MusixmatchLyricsBody?
+    @SerializedName("body") val body: MusixmatchLyricsBody?
 )
 
 data class MusixmatchLyricsBody(
-    val lyrics: MusixmatchLyrics?
+    @SerializedName("lyrics") val lyrics: MusixmatchLyrics?
 )
 
 data class MusixmatchLyrics(
-    val lyrics_body: String?
+    @SerializedName("lyrics_body") val lyrics_body: String?
 )
 
 interface MusixmatchApi {
@@ -151,29 +161,29 @@ interface MusixmatchApi {
  * ============================================
  */
 data class NeteaseSearchResponse(
-    val result: NeteaseResult?
+    @SerializedName("result") val result: NeteaseResult?
 )
 
 data class NeteaseResult(
-    val songs: List<NeteaseSong>?
+    @SerializedName("songs") val songs: List<NeteaseSong>?
 )
 
 data class NeteaseSong(
-    val id: Long?,
-    val name: String?,
-    val artists: List<NeteaseArtist>?
+    @SerializedName("id") val id: Long?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("artists") val artists: List<NeteaseArtist>?
 )
 
 data class NeteaseArtist(
-    val name: String?
+    @SerializedName("name") val name: String?
 )
 
 data class NeteaseLyricsResponse(
-    val lrc: NeteaseLrc?
+    @SerializedName("lrc") val lrc: NeteaseLrc?
 )
 
 data class NeteaseLrc(
-    val lyric: String?
+    @SerializedName("lyric") val lyric: String?
 )
 
 interface NeteaseApi {
@@ -195,25 +205,25 @@ interface NeteaseApi {
  * ============================================
  */
 data class GeniusSearchResponse(
-    val response: GeniusResponseData?
+    @SerializedName("response") val response: GeniusResponseData?
 )
 
 data class GeniusResponseData(
-    val hits: List<GeniusHit>?
+    @SerializedName("hits") val hits: List<GeniusHit>?
 )
 
 data class GeniusHit(
-    val result: GeniusResult?
+    @SerializedName("result") val result: GeniusResult?
 )
 
 data class GeniusResult(
-    val url: String?,
-    val title: String?,
-    val primary_artist: GeniusArtist?
+    @SerializedName("url") val url: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("primary_artist") val primary_artist: GeniusArtist?
 )
 
 data class GeniusArtist(
-    val name: String?
+    @SerializedName("name") val name: String?
 )
 
 interface GeniusApi {
@@ -237,10 +247,6 @@ object MultiProviderLyricsClient {
      * Shared OkHttp client for all providers
      */
     private val okHttpClient: OkHttpClient by lazy {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
-        }
-
         OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -252,7 +258,17 @@ object MultiProviderLyricsClient {
                     .build()
                 chain.proceed(request)
             }
-            .addInterceptor(loggingInterceptor)
+            .apply {
+                // BASIC level logs the full request line, which for Musixmatch
+                // contains the api key query parameter. Keep it out of release
+                // builds so the key never reaches logcat.
+                if (BuildConfig.DEBUG) {
+                    val loggingInterceptor = HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BASIC
+                    }
+                    addInterceptor(loggingInterceptor)
+                }
+            }
             .build()
     }
 

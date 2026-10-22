@@ -4,21 +4,23 @@
     <string name="user_agreement_content">
         <![CDATA[
         <h3>BeatBox Kullanıcı Sözleşmesi</h3>
-        <p><b>Son Güncelleme:</b> 2025</p>
+        <p><b>Son Güncelleme:</b> 2026</p>
         
         <h4>1. Genel Koşullar</h4>
         <p>BeatBox uygulamasını kullanarak bu sözleşmeyi kabul etmiş sayılırsınız. Uygulama, cihazınızdaki müzik dosyalarını oynatmak için tasarlanmıştır.</p>
         
         <h4>2. Gizlilik ve Veri Kullanımı</h4>
         <p>• BeatBox, cihazınızdaki müzik dosyalarına erişim izni gerektirir.</p>
-        <p>• Hiçbir kişisel veri veya müzik dosyası sunucularımıza gönderilmez.</p>
-        <p>• Tüm veriler cihazınızda yerel olarak saklanır.</p>
-        <p>• İnternet bağlantısı gerektirmez.</p>
+        <p>• Müzik dosyalarının kendisi, ses verisi ve oynatma geçmişi cihazınızda yerel olarak saklanır ve sunucularımıza gönderilmez.</p>
+        <p>• Şarkı sözü ve sanatçı görseli özelliklerini kullanmak için <b>şarkı adı, sanatçı adı ve albüm adı</b> bilgisi aşağıdaki üçüncü taraf servislerine gönderilir: LRCLIB, Musixmatch, NetEase Müzik, Genius, lyrics.ovh, BetterLyrics, iTunes Search API ve Deezer.</p>
+        <p>• Bu servisler kendi gizlilik politikalarına tabidir ve size kendi verilerini işleyebilir.</p>
+        <p>• Ağ üzerinden yalnızca söz araması, kapak görseli araması ve güncelleme kontrolü yapılır. Müzik çalmak için internet bağlantısı gerekmez.</p>
         
         <h4>3. İzinler</h4>
         <p>• <b>Müzik ve Ses Dosyaları:</b> Müzik kütüphanenize erişim için gereklidir.</p>
-        <p>• <b>Mikrofon (Visualizer):</b> Sadece ses görselleştirme için kullanılır, kayıt yapılmaz.</p>
-        <p>• <b>Bildirimler:</b> Müzik kontrolü için gereklidir.</p>
+        <p>• <b>Mikrofon (Görselleştirici):</b> Yalnızca ekrandaki ses görselleştirmesi için kullanılır, hiçbir kayıt yapılmaz ve uygulama dışına aktarılmaz. Bu özellik açıldığında iznin ayrıca istenir.</p>
+        <p>• <b>Bildirimler:</b> Müzik oynatma kontrolleri için gereklidir.</p>
+        <p>• <b>İnternet:</b> Söz ve kapak görseli araması, güncelleme kontrolü için gereklidir.</p>
         
         <h4>4. Telif Hakları</h4>
         <p>• Kullanıcılar, cihazlarındaki müzik dosyalarının yasal sahibi olmalıdır.</p>
