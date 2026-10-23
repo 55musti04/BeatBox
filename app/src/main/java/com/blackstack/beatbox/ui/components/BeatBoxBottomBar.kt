@@ -45,8 +45,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -105,7 +106,7 @@ fun BeatBoxBottomBar(
                 BeatBoxNavItemView(
                     item = item,
                     selected = selectedTab == index,
-                    onClick = { onTabSelected(index) },
+                    onSelect = { onTabSelected(index) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -117,10 +118,17 @@ fun BeatBoxBottomBar(
 private fun BeatBoxNavItemView(
     item: BeatBoxNavItem,
     selected: Boolean,
-    onClick: () -> Unit,
+    onSelect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    // Secim hem dokunmayla hem de TalkBack eylemiyle ayni yoldan gecer.
+    val select = {
+        if (!selected) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onSelect()
+        }
+    }
     val pill by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
         animationSpec = BeatBoxMotion.Soft,
@@ -138,20 +146,21 @@ private fun BeatBoxNavItemView(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(24.dp))
-            // Etiket ve secili durumu tek bir erisilebilirlik dugumunde topla;
-            // aksi halde TalkBack sekme adini veya "secili" bilgisini okuyamaz.
-            .semantics(mergeDescendants = true) {
+            // Etiket, secili durum ve tiklama tek bir erisilebilirlik dugumunde
+            // toplanir; aksi halde TalkBack sekme adini veya "secili" bilgisini
+            // ayri dugumlerde gorur.
+            .clearAndSetSemantics {
                 contentDescription = item.label
                 this.selected = selected
+                role = Role.Tab
+                onClick {
+                    select()
+                    true
+                }
             }
             .selectable(
                 selected = selected,
-                onClick = {
-                    if (!selected) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onClick()
-                    }
-                },
+                onClick = select,
                 role = Role.Tab,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
