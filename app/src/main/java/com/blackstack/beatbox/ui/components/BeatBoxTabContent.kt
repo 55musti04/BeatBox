@@ -120,7 +120,7 @@ fun BeatBoxTabContent(
                     visualizerWaveform = visualizerWaveform
                 )
             }
-            // Tab 1 = Playlists (Ã‡alma Listeleri)
+            // Tab 1 = Playlists (Çalma Listeleri)
             1 -> {
                 PlaylistsScreen(
                     allAudioList = allAudioList,
@@ -131,10 +131,11 @@ fun BeatBoxTabContent(
                     onPlaylistOpen = { overlays.playlistDetail = it },
                     onPlaylistDelete = { p -> onPlaylistsChange(playlists.filter { it.id != p.id }) },
                     onPlaylistEdit = { overlays.editPlaylist = it },
-                    onPlaylistsChange = { onPlaylistsChange(it) }
+                    onPlaylistsChange = { onPlaylistsChange(it) },
+                    onCreatePlaylist = { overlays.showCreatePlaylist = true }
                 )
             }
-            // Tab 2 = Library (KÃ¼tÃ¼phane)
+            // Tab 2 = Library (Kütüphane)
             2 -> {
                 LibraryScreen(
                     allAudioList = allAudioList,

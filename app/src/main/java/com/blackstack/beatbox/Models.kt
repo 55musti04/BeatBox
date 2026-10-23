@@ -70,6 +70,8 @@ data class AudioFile(
     val dateAdded: Long,
     val isOnline: Boolean = false,
     val artworkUrl: String? = null,
+    /** Çevrim içi eşleşmeden indirilen yerel kapak dosyası. */
+    val artworkPath: String? = null,
     val isExplicit: Boolean = false,
     val albumArtist: String? = null,
     val albumName: String? = null
@@ -131,6 +133,56 @@ class Strings(val lang: AppLanguage) {
             "en" to "Playlists", "tr" to "Çalma Listeleri", "es" to "Listas", "fr" to "Listes",
             "de" to "Wiedergabelisten", "it" to "Playlist", "pt" to "Playlists", "ru" to "Плейлисты",
             "ja" to "プレイリスト", "zh" to "播放列表", "ar" to "قوائم التشغيل", "ko" to "재생목록"
+        ),
+        "playlists_short" to mapOf(
+            "en" to "Playlists", "tr" to "Listeler", "es" to "Listas", "fr" to "Listes",
+            "de" to "Listen", "it" to "Playlist", "pt" to "Playlists", "ru" to "Плейлисты",
+            "ja" to "リスト", "zh" to "列表", "ar" to "قوائم", "ko" to "목록"
+        ),
+        "smart_lists" to mapOf(
+            "en" to "Smart lists", "tr" to "Akıllı listeler", "es" to "Listas inteligentes",
+            "fr" to "Listes intelligentes", "de" to "Intelligente Listen", "it" to "Playlist intelligenti",
+            "pt" to "Listas inteligentes", "ru" to "Умные плейлисты", "ja" to "スマートリスト",
+            "zh" to "智能列表", "ar" to "قوائم ذكية", "ko" to "스마트 목록"
+        ),
+        "smart_playlist" to mapOf(
+            "en" to "Smart playlist", "tr" to "Akıllı liste", "es" to "Lista inteligente",
+            "fr" to "Liste intelligente", "de" to "Intelligente Liste", "it" to "Playlist intelligente",
+            "pt" to "Lista inteligente", "ru" to "Умный плейлист", "ja" to "スマートプレイリスト",
+            "zh" to "智能播放列表", "ar" to "قائمة تشغيل ذكية", "ko" to "스마트 재생목록"
+        ),
+        "your_playlists" to mapOf(
+            "en" to "Your playlists", "tr" to "Listelerin", "es" to "Tus listas",
+            "fr" to "Vos listes", "de" to "Deine Listen", "it" to "Le tue playlist",
+            "pt" to "Suas playlists", "ru" to "Ваши плейлисты", "ja" to "あなたのプレイリスト",
+            "zh" to "你的播放列表", "ar" to "قوائمك", "ko" to "내 재생목록"
+        ),
+        "play_all" to mapOf(
+            "en" to "Play all", "tr" to "Tümünü çal", "es" to "Reproducir todo",
+            "fr" to "Tout lire", "de" to "Alle abspielen", "it" to "Riproduci tutto",
+            "pt" to "Reproduzir tudo", "ru" to "Слушать все", "ja" to "すべて再生",
+            "zh" to "全部播放", "ar" to "تشغيل الكل", "ko" to "모두 재생"
+        ),
+        "back" to mapOf(
+            "en" to "Back", "tr" to "Geri", "es" to "Atrás", "fr" to "Retour",
+            "de" to "Zurück", "it" to "Indietro", "pt" to "Voltar", "ru" to "Назад",
+            "ja" to "戻る", "zh" to "返回", "ar" to "رجوع", "ko" to "뒤로"
+        ),
+        "empty_playlists_hint" to mapOf(
+            "en" to "Create a playlist for every mood.", "tr" to "Her ruh halin için bir liste oluştur.",
+            "es" to "Crea una lista para cada estado de ánimo.", "fr" to "Créez une liste pour chaque humeur.",
+            "de" to "Erstelle eine Liste für jede Stimmung.", "it" to "Crea una playlist per ogni umore.",
+            "pt" to "Crie uma lista para cada humor.", "ru" to "Создайте плейлист под каждое настроение.",
+            "ja" to "気分ごとにプレイリストを作ろう。", "zh" to "为每种心情创建播放列表。",
+            "ar" to "أنشئ قائمة لكل مزاج.", "ko" to "기분에 맞는 재생목록을 만들어 보세요."
+        ),
+        "playlist_empty" to mapOf(
+            "en" to "No songs in this playlist yet", "tr" to "Bu listede henüz şarkı yok",
+            "es" to "Aún no hay canciones en esta lista", "fr" to "Pas encore de chansons dans cette liste",
+            "de" to "Noch keine Lieder in dieser Liste", "it" to "Nessun brano in questa playlist",
+            "pt" to "Ainda não há músicas nesta lista", "ru" to "В этом плейлисте пока нет песен",
+            "ja" to "このプレイリストにはまだ曲がありません", "zh" to "此播放列表中还没有歌曲",
+            "ar" to "لا توجد أغانٍ في هذه القائمة بعد", "ko" to "이 재생목록에 아직 곡이 없습니다"
         ),
         "settings" to mapOf(
             "en" to "Settings", "tr" to "Ayarlar", "es" to "Ajustes", "fr" to "Paramètres",
@@ -251,6 +303,14 @@ class Strings(val lang: AppLanguage) {
             "fr" to "Mode performance", "de" to "Leistungsmodus", "it" to "Modalità prestazioni",
             "pt" to "Modo de desempenho", "ru" to "Режим производительности", "ja" to "パフォーマンスモード",
             "zh" to "性能模式", "ar" to "وضع الأداء", "ko" to "성능 모드"
+        ),
+        "auto_song_metadata" to mapOf(
+            "en" to "Auto-fill song info", "tr" to "Şarkı bilgilerini otomatik tamamla",
+            "es" to "Completar info. de canciones", "fr" to "Compléter les infos des chansons",
+            "de" to "Songinfos automatisch ergänzen", "it" to "Completa info brani",
+            "pt" to "Preencher informações das músicas", "ru" to "Автозаполнение сведений о песнях",
+            "ja" to "曲情報を自動補完", "zh" to "自动补全歌曲信息",
+            "ar" to "ملء معلومات الأغنية تلقائيًا", "ko" to "곡 정보 자동 채우기"
         ),
         "audio" to mapOf(
             "en" to "Audio", "tr" to "Ses", "es" to "Audio", "fr" to "Audio",
@@ -647,6 +707,26 @@ class Strings(val lang: AppLanguage) {
             "pt" to "será excluído. Você confirma?", "ru" to "будет удалено. Подтверждаете?",
             "ja" to "削除されます。確認しますか？", "zh" to "将被删除。确认吗？", "ar" to "سيتم حذفه. هل تؤكد؟",
             "ko" to "삭제됩니다. 확인하시겠습니까?"
+        ),
+        "delete_playlist_title" to mapOf(
+            "en" to "Delete playlist", "tr" to "Çalma listesini sil", "es" to "Eliminar lista",
+            "fr" to "Supprimer la liste", "de" to "Wiedergabeliste löschen", "it" to "Elimina playlist",
+            "pt" to "Excluir playlist", "ru" to "Удалить плейлист", "ja" to "プレイリストを削除",
+            "zh" to "删除播放列表", "ar" to "حذف قائمة التشغيل", "ko" to "재생목록 삭제"
+        ),
+        "delete_playlist_message" to mapOf(
+            "en" to "This playlist will be deleted. Songs stay in your library.",
+            "tr" to "Bu liste silinecek. Şarkılar kütüphanende kalır.",
+            "es" to "Esta lista se eliminará. Las canciones permanecen en tu biblioteca.",
+            "fr" to "Cette liste sera supprimée. Les chansons restent dans votre bibliothèque.",
+            "de" to "Diese Liste wird gelöscht. Die Lieder bleiben in deiner Bibliothek.",
+            "it" to "Questa playlist verrà eliminata. I brani restano nella tua libreria.",
+            "pt" to "Esta playlist será excluída. As músicas permanecem na sua biblioteca.",
+            "ru" to "Плейлист будет удалён. Песни останутся в библиотеке.",
+            "ja" to "このプレイリストは削除されます。曲はライブラリに残ります。",
+            "zh" to "此播放列表将被删除。歌曲仍保留在音乐库中。",
+            "ar" to "ستُحذف هذه القائمة. ستبقى الأغاني في مكتبتك.",
+            "ko" to "이 재생목록이 삭제됩니다. 곡은 라이브러리에 남습니다."
         ),
         "user_agreement" to mapOf(
             "en" to "User Agreement", "tr" to "Kullanıcı Sözleşmesi", "es" to "Acuerdo de usuario",

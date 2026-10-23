@@ -871,94 +871,15 @@ private fun formatDuration(millis: Long): String {
     return String.format(java.util.Locale.getDefault(), "%d:%02d", minutes, secs)
 }
 
-@Composable fun PlaylistItem(p: Playlist, onClick: () -> Unit, onDel: () -> Unit, onEdit: () -> Unit, strings: Strings? = null) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() }.cardShadow(), shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant.copy(0.3f))) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (p.isArtistPlaylist && !p.artistName.isNullOrBlank()) {
-                    ArtistImage(
-                        artistName = p.artistName,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, null, tint = MaterialTheme.colorScheme.primary)
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(p.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                val songLabel = strings?.get("songs") ?: "Songs"
-                Text("${p.songIds.size} $songLabel", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(0.6f))
-            }
-            if (!p.isArtistPlaylist) {
-                IconButton(onClick = onEdit, modifier = Modifier.iconButtonShadow()) { Icon(Icons.Default.Edit, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) }
-            }
-            IconButton(onClick = onDel, modifier = Modifier.iconButtonShadow()) { Icon(Icons.Default.Delete, null, Modifier.size(20.dp), tint = Color.Red) }
-        }
-    }
-}
-
-@Composable fun ArtistCard(
-    artistName: String,
-    songCount: Int,
-    onClick: () -> Unit,
-    strings: Strings? = null
-) {
-    Card(
-        modifier = Modifier
-            .width(140.dp)
-            .clickable { onClick() }
-            .cardShadow(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f))
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                ArtistImage(
-                    artistName = artistName,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = artistName,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                maxLines = 1,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            val songLabel = strings?.get("songs") ?: "Songs"
-            Text(
-                text = "$songCount $songLabel",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(0.6f)
-            )
-        }
-    }
-}
-
-
 @Composable fun AlbumArtImage(a: AudioFile, modifier: Modifier = Modifier, isHQ: Boolean = false) {
     val ctx = LocalContext.current
-    var bmp by remember(a.id) { mutableStateOf<Bitmap?>(AlbumArtCache.bitmapCache.get(a.id)) }
-    var isLoading by remember(a.id) { mutableStateOf(false) }
+    val resolvedPath = SongMetadataRepository.resolvedArtwork[a.id]
+    var bmp by remember(a.id, a.artworkPath, resolvedPath) {
+        mutableStateOf<Bitmap?>(AlbumArtCache.bitmapCache.get(a.id))
+    }
+    var isLoading by remember(a.id, a.artworkPath, resolvedPath) { mutableStateOf(false) }
     
-    LaunchedEffect(a.id) {
+    LaunchedEffect(a.id, a.artworkPath, resolvedPath) {
         if (bmp == null) {
             // Check memory cache first
             AlbumArtCache.bitmapCache.get(a.id)?.let {
@@ -1012,6 +933,23 @@ private fun formatDuration(millis: Long): String {
                     } catch (_: Exception) {}
                 }
 
+                // 3. Önceden indirilmiş çevrim içi kapak.
+                if (bitmap == null) {
+                    val cachedPath = a.artworkPath ?: resolvedPath
+                    if (!cachedPath.isNullOrBlank()) {
+                        bitmap = decodeCachedArtwork(cachedPath, isHQ)
+                    }
+                }
+
+                // 4. Yerel kapak yoksa çevrim içi kaynaklardan tamamla.
+                //    Eşleşme bulunamazsa mevcut gradyan yer tutucu kalır.
+                if (bitmap == null) {
+                    val fetchedPath = SongMetadataRepository.ensureArtwork(ctx, a)
+                    if (fetchedPath != null) {
+                        bitmap = decodeCachedArtwork(fetchedPath, isHQ)
+                    }
+                }
+
                 if (bitmap != null) {
                     AlbumArtCache.bitmapCache.put(a.id, bitmap)
                 }
@@ -1051,6 +989,22 @@ private fun formatDuration(millis: Long): String {
             }
         }
     }
+}
+
+/** Disk önbelleğindeki kapağı liste boyutuna uygun şekilde çözer. */
+private fun decodeCachedArtwork(path: String, isHQ: Boolean): Bitmap? = try {
+    val file = File(path)
+    if (!file.exists()) {
+        null
+    } else {
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = if (isHQ) 1 else 2
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+    }
+} catch (_: Exception) {
+    null
 }
 
 // Generates a pleasant gradient based on song title/artist to use when album art is missing

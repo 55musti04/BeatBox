@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.core.content.ContextCompat
@@ -123,13 +124,17 @@ fun BeatBoxApp(
         if (!hasPermission) return
         isLoading = true
         coroutineScope.launch {
-            withContext(Dispatchers.IO) {
-                val (l, f) = loadAudioFilesAndFolders(ctx, minDurationSeconds, selectedFolders)
-                withContext(Dispatchers.Main) {
-                    allAudioList = l
-                    availableFolders = f
-                    isLoading = false
-                }
+            val (loaded, folders) = withContext(Dispatchers.IO) {
+                loadAudioFilesAndFolders(ctx, minDurationSeconds, selectedFolders)
+            }
+            // Daha önce çözülen sanatçı ve kapakları hemen uygula; ardından
+            // eksik kalanları arka planda çevrim içi tamamla.
+            val enriched = SongMetadataRepository.applyCached(ctx, loaded)
+            allAudioList = enriched
+            availableFolders = folders
+            isLoading = false
+            SongMetadataRepository.enrichUnknownArtists(ctx, enriched) { id, artist, artworkPath ->
+                allAudioList = SongMetadataRepository.applyResolved(allAudioList, id, artist, artworkPath)
             }
         }
     }
@@ -145,6 +150,14 @@ fun BeatBoxApp(
     var currentPlaylist by remember { mutableStateOf<List<AudioFile>>(emptyList()) }
     var currentAudio by player.currentAudio
     var isPlaying by player.isPlaying
+
+    // Kitaplık veya çevrim içi bilgiler güncellendiğinde çalan şarkıyı ve
+    // kuyruğu aynı zenginleştirilmiş meta verilerle tazele.
+    LaunchedEffect(allAudioList) {
+        val byId = allAudioList.associateBy { it.id }
+        currentAudio = currentAudio?.let { byId[it.id] ?: it }
+        if (currentPlaylist.isNotEmpty()) currentPlaylist = currentPlaylist.map { byId[it.id] ?: it }
+    }
 
     var isShuffle by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(0) }
@@ -212,75 +225,89 @@ fun BeatBoxApp(
 
     Box(Modifier.fillMaxSize()) {
         AuroraBackground(currentTheme, Modifier.fillMaxSize()) {
-            BeatBoxScaffold(
-                player = player,
-                strings = strings,
-                ctx = ctx,
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                sortOption = sortOption,
-                onSortOptionChange = { sortOption = it },
-                speechLauncher = speechLauncher,
-                tempoViz = tempoViz,
-                isPlaying = isPlaying,
-                visualizerLevel = visualizerLevel,
-                visualizerWaveform = visualizerWaveform,
-                userProfile = userProfile,
-                avatarIcons = avatarIcons,
-                currentAudio = currentAudio,
-                showPlayer = overlays.showPlayer,
-                showFab = selectedTab == 1 && !overlays.showPlayer && overlays.playlistDetail == null,
-                onPlayPause = togglePlayPause,
-                onNext = playNext,
-                onPrev = playPrev,
-                onOpenPlayer = { overlays.showPlayer = true },
-                onCreatePlaylist = { overlays.showCreatePlaylist = true },
-                onOpenEQ = { overlays.showEQ = true },
-                onOpenSleepTimer = { overlays.showSleepTimer = true },
-                onProfileClick = { if (userProfile.isLoggedIn) overlays.showProfile = true else overlays.showAuth = true },
-                onOpenSettings = { overlays.showSettings = true }
-            ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                if (!hasPermission) {
-                    PermissionScreen(strings) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                            permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS))
-                        else
-                            permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
-                    }
-                } else if (isLoading) {
-                    BeatBoxSkeleton(Modifier.fillMaxSize())
+            // Tam ekran katman açıkken alttaki scaffold TalkBack tarafından
+            // odaklanmaz; aksi halde görünmeyen üst çubuk okunabilir.
+            Box(
+                modifier = if (
+                    overlays.playlistDetail != null ||
+                    overlays.showPlayer ||
+                    overlays.showSettings
+                ) {
+                    Modifier.clearAndSetSemantics { }
                 } else {
-                    BeatBoxTabContent(
-                        selectedTab = selectedTab,
-                        allAudioList = allAudioList,
-                        favoriteIds = favoriteIds,
-                        playlists = playlists,
-                        currentAudio = currentAudio,
-                        currentPlaylist = currentPlaylist,
-                        isPlaying = isPlaying,
-                        searchQuery = searchQuery,
-                        sortOption = sortOption,
-                        visualizerLevel = visualizerLevel,
-                        visualizerWaveform = visualizerWaveform,
-                        strings = strings,
-                        ctx = ctx,
-                        prefs = prefs,
-                        player = player,
-                        overlays = overlays,
-                        onCurrentPlaylistChange = { currentPlaylist = it },
-                        onCurrentAudioChange = { currentAudio = it },
-                        onFavoriteIdsChange = { favoriteIds = it },
-                        onPlaylistsChange = { list ->
-                            playlists = list
-                            player.savePlaylists(list)
+                    Modifier
+                }
+            ) {
+                BeatBoxScaffold(
+                    player = player,
+                    strings = strings,
+                    ctx = ctx,
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { searchQuery = it },
+                    sortOption = sortOption,
+                    onSortOptionChange = { sortOption = it },
+                    speechLauncher = speechLauncher,
+                    tempoViz = tempoViz,
+                    isPlaying = isPlaying,
+                    visualizerLevel = visualizerLevel,
+                    visualizerWaveform = visualizerWaveform,
+                    userProfile = userProfile,
+                    avatarIcons = avatarIcons,
+                    currentAudio = currentAudio,
+                    showPlayer = overlays.showPlayer,
+                    showFab = selectedTab == 1 && !overlays.showPlayer && overlays.playlistDetail == null,
+                    onPlayPause = togglePlayPause,
+                    onNext = playNext,
+                    onPrev = playPrev,
+                    onOpenPlayer = { overlays.showPlayer = true },
+                    onCreatePlaylist = { overlays.showCreatePlaylist = true },
+                    onOpenEQ = { overlays.showEQ = true },
+                    onOpenSleepTimer = { overlays.showSleepTimer = true },
+                    onProfileClick = { if (userProfile.isLoggedIn) overlays.showProfile = true else overlays.showAuth = true },
+                    onOpenSettings = { overlays.showSettings = true }
+                ) { padding ->
+                    Box(Modifier.fillMaxSize().padding(padding)) {
+                        if (!hasPermission) {
+                            PermissionScreen(strings) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                    permLauncher.launch(arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS))
+                                else
+                                    permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
+                            }
+                        } else if (isLoading) {
+                            BeatBoxSkeleton(Modifier.fillMaxSize())
+                        } else {
+                            BeatBoxTabContent(
+                                selectedTab = selectedTab,
+                                allAudioList = allAudioList,
+                                favoriteIds = favoriteIds,
+                                playlists = playlists,
+                                currentAudio = currentAudio,
+                                currentPlaylist = currentPlaylist,
+                                isPlaying = isPlaying,
+                                searchQuery = searchQuery,
+                                sortOption = sortOption,
+                                visualizerLevel = visualizerLevel,
+                                visualizerWaveform = visualizerWaveform,
+                                strings = strings,
+                                ctx = ctx,
+                                prefs = prefs,
+                                player = player,
+                                overlays = overlays,
+                                onCurrentPlaylistChange = { currentPlaylist = it },
+                                onCurrentAudioChange = { currentAudio = it },
+                                onFavoriteIdsChange = { favoriteIds = it },
+                                onPlaylistsChange = { list ->
+                                    playlists = list
+                                    player.savePlaylists(list)
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
-        }
 
         BeatBoxOverlays(
             overlays = overlays,
@@ -345,19 +372,7 @@ fun BeatBoxApp(
                 selectedFolders = folders
                 player.saveSelectedFolders(folders)
             },
-            onReloadLibrary = {
-                isLoading = true
-                coroutineScope.launch {
-                    withContext(Dispatchers.IO) {
-                        val (l, f) = loadAudioFilesAndFolders(ctx, minDurationSeconds, selectedFolders)
-                        withContext(Dispatchers.Main) {
-                            allAudioList = l
-                            availableFolders = f
-                            isLoading = false
-                        }
-                    }
-                }
-            },
+            onReloadLibrary = { reloadLibrary() },
             onDeleteSong = { song ->
                 if (player.deleteSong(song)) {
                     allAudioList = allAudioList.filter { it.id != song.id }

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -168,6 +169,68 @@ fun EditPlaylistDialog(
         dismissButton = { TextButton({ onDismiss() }, modifier = Modifier.buttonShadow()) { Text(strings.get("cancel")) } },
         title = { Text(strings.get("update")) },
         text = { OutlinedTextField(n, { n = it }, label = { Text(strings.get("playlist_name")) }, shape = RoundedCornerShape(28.dp)) }
+    )
+}
+
+/** Kullanıcı çalma listesini silmeden önce onay ister. */
+@Composable
+fun DeletePlaylistDialog(
+    strings: Strings,
+    playlist: Playlist,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(
+                    Icons.Rounded.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(strings.get("delete"), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.buttonShadow()) {
+                Text(
+                    strings.get("cancel"),
+                    color = MaterialTheme.colorScheme.onSurface.copy(0.7f)
+                )
+            }
+        },
+        title = {
+            Text(
+                strings.get("delete_playlist_title"),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    playlist.name,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    strings.get("delete_playlist_message"),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            }
+        },
+        shape = RoundedCornerShape(28.dp)
     )
 }
 

@@ -365,7 +365,7 @@ fun SettingsScreen(
                     SettingsClickItem(
                         Icons.Rounded.CleaningServices,
                         strings.get("clear_cache"),
-                        "RAM & GÃ¶rsel Ã–nbelleÄŸi"
+                        "RAM ve görsel önbelleği"
                     ) {
                         ArtistImageProvider.bitmapCache.evictAll()
                         AlbumArtCache.bitmapCache.evictAll()
@@ -374,6 +374,19 @@ fun SettingsScreen(
                 }
                 item { Spacer(Modifier.height(16.dp)); SettingsHeader(strings.get("general")) }
                 item { SettingsClickItem(Icons.Rounded.Folder, strings.get("folders")) { onOpenFolderDialog() } }
+                item {
+                    var autoMetadata by remember {
+                        mutableStateOf(prefs.getBoolean("auto_song_metadata", true))
+                    }
+                    SettingsToggleItem(
+                        Icons.Rounded.AutoAwesome,
+                        strings.get("auto_song_metadata"),
+                        autoMetadata
+                    ) { enabled ->
+                        autoMetadata = enabled
+                        prefs.edit { putBoolean("auto_song_metadata", enabled) }
+                    }
+                }
                 item { SettingsClickItem(Icons.Rounded.Info, strings.get("about"), "BeatBox v3.0") { showAboutDialog = true } }
             }
         }

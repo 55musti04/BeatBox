@@ -88,6 +88,9 @@ fun BeatBoxSongRow(
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val onSurface = MaterialTheme.colorScheme.onSurface
+    val artistLabel = audio.artist.takeIf {
+        it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true)
+    } ?: strings.get("unknown_artist")
     val shape = RoundedCornerShape(if (compact) 16.dp else 20.dp)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -160,6 +163,9 @@ fun BeatBoxSongRow(
                     scaleY = scale
                 }
                 .clip(shape)
+                // Opak taban, arkadaki kaydırma etiketinin cam yüzeyden
+                // sızmasını engeller; üstteki beyaz gradyan cam etkisini verir.
+                .background(MaterialTheme.colorScheme.surface)
                 .background(
                     if (isCurrent) {
                         Brush.linearGradient(
@@ -201,7 +207,7 @@ fun BeatBoxSongRow(
                     contentDescription = buildString {
                         append(audio.title)
                         append(", ")
-                        append(audio.artist)
+                        append(artistLabel)
                         append(", ")
                         append(formatTime(audio.duration))
                         if (isFavorite) {
@@ -302,7 +308,7 @@ fun BeatBoxSongRow(
                 }
                 Spacer(Modifier.height(if (compact) 1.dp else 3.dp))
                 Text(
-                    text = audio.artist,
+                    text = artistLabel,
                     fontSize = if (compact) 10.5.sp else 11.5.sp,
                     color = onSurface.copy(alpha = 0.56f),
                     maxLines = 1,

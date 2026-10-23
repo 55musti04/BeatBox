@@ -403,7 +403,7 @@ fun BeatBoxScaffold(
                     BeatBoxNavItem(
                         icon = Icons.AutoMirrored.Outlined.QueueMusic,
                         selectedIcon = Icons.AutoMirrored.Rounded.QueueMusic,
-                        label = strings.get("playlists")
+                        label = strings.get("playlists_short")
                     ),
                     BeatBoxNavItem(
                         icon = Icons.Outlined.LibraryMusic,
