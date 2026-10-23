@@ -47,7 +47,9 @@ fun BeatBoxTabContent(
     onCurrentPlaylistChange: (List<AudioFile>) -> Unit,
     onCurrentAudioChange: (AudioFile) -> Unit,
     onFavoriteIdsChange: (Set<String>) -> Unit,
-    onPlaylistsChange: (List<Playlist>) -> Unit
+    onPlaylistsChange: (List<Playlist>) -> Unit,
+    /** Ana sayfa compact top bar görünürlüğü değiştiğinde çağrılır. */
+    onHomeCompactBarVisibleChange: ((Boolean) -> Unit)? = null
 ) {
     AnimatedContent(
         targetState = selectedTab,
@@ -117,7 +119,8 @@ fun BeatBoxTabContent(
                     strings = strings,
                     ctx = ctx,
                     visualizerLevel = visualizerLevel,
-                    visualizerWaveform = visualizerWaveform
+                    visualizerWaveform = visualizerWaveform,
+                    onCompactBarVisibleChange = onHomeCompactBarVisibleChange
                 )
             }
             // Tab 1 = Playlists (Çalma Listeleri)

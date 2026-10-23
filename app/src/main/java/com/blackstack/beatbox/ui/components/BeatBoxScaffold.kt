@@ -1,6 +1,7 @@
 package com.blackstack.beatbox.ui.components
 
 import com.blackstack.beatbox.*
+import com.blackstack.beatbox.ui.theme.BeatBoxMotion
 import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -52,6 +54,11 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,6 +114,12 @@ fun BeatBoxScaffold(
     onOpenSleepTimer: () -> Unit,
     onProfileClick: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Ana sayfada (sekme 0) üst çubuk şeffaf/glass olsun; içerik altından kayar. */
+    transparentTopBar: Boolean = false,
+    /** Compact üst çubuk görünürlüğü (parallax sonrası). */
+    showCompactTopBar: Boolean = false,
+    onCompactProfileClick: () -> Unit = {},
+    onCompactSettingsClick: () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     val locale = LocalConfiguration.current.locales[0]
@@ -116,32 +129,51 @@ fun BeatBoxScaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         topBar = {
-        Column(Modifier.statusBarsPadding()) {
-            // Floating Oval Bar with Icons
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                                )
-                            ),
-                            shape = RoundedCornerShape(32.dp)
-                        ),
-                    shape = RoundedCornerShape(32.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                    shadowElevation = 12.dp,
-                    tonalElevation = 4.dp
+            Column(Modifier.statusBarsPadding()) {
+                // Compact Top Bar Overlay (appears when scrolled past hero on Home)
+                AnimatedVisibility(
+                    visible = showCompactTopBar,
+                    enter = fadeIn(animationSpec = BeatBoxMotion.expressive()) + slideInVertically(
+                        initialOffsetY = { height -> -height }, animationSpec = BeatBoxMotion.slideSpec()
+                    ),
+                    exit = fadeOut(animationSpec = BeatBoxMotion.Snappy) + slideOutVertically(
+                        targetOffsetY = { height -> -height }, animationSpec = BeatBoxMotion.slideSpec()
+                    )
                 ) {
+                    CompactTopBar(
+                        strings = strings,
+                        userProfile = userProfile,
+                        avatarIcons = avatarIcons,
+                        onProfileClick = onCompactProfileClick,
+                        onSettingsClick = onCompactSettingsClick
+                    )
+                }
+
+                // Floating Oval Bar with Icons (transparent on Home)
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = if (transparentTopBar) 0.15f else 0.35f),
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = if (transparentTopBar) 0.06f else 0.12f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(32.dp)
+                            ),
+                        shape = RoundedCornerShape(32.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (transparentTopBar) 0.25f else 0.85f),
+                        shadowElevation = if (transparentTopBar) 4.dp else 12.dp,
+                        tonalElevation = if (transparentTopBar) 1.dp else 4.dp
+                    ) {
                     Row(
                         Modifier
                             .fillMaxSize()
@@ -428,4 +460,83 @@ fun BeatBoxScaffold(
         },
         content = content
     )
+}
+
+// Compact 48 dp top bar shown when scrolled past hero on Home.
+@Composable
+private fun CompactTopBar(
+    strings: Strings,
+    userProfile: UserProfile,
+    avatarIcons: List<ImageVector>,
+    onProfileClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val onSurface = MaterialTheme.colorScheme.onSurface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .statusBarsPadding()
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+                    )
+                )
+            )
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(0.dp),
+                ambientColor = primary.copy(alpha = 0.12f)
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = strings.get("app_name"),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp,
+                color = onSurface
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (userProfile.isLoggedIn)
+                                primary.copy(alpha = 0.20f)
+                            else
+                                primary.copy(alpha = 0.10f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = avatarIcons.getOrElse(userProfile.avatarId) { Icons.Rounded.Person },
+                        contentDescription = strings.get("profile"),
+                        tint = if (userProfile.isLoggedIn) primary else Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onSettingsClick) {
+                    Icon(
+                        Icons.Rounded.Settings,
+                        contentDescription = strings.get("settings"),
+                        tint = primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
 }

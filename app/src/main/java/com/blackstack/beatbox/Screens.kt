@@ -223,6 +223,8 @@ fun BeatBoxApp(
         else if (overlays.showSettings) overlays.showSettings = false
     }
 
+    var compactTopBarVisible by remember { mutableStateOf(false) }
+
     Box(Modifier.fillMaxSize()) {
         AuroraBackground(currentTheme, Modifier.fillMaxSize()) {
             // Tam ekran katman açıkken alttaki scaffold TalkBack tarafından
@@ -266,7 +268,11 @@ fun BeatBoxApp(
                     onOpenEQ = { overlays.showEQ = true },
                     onOpenSleepTimer = { overlays.showSleepTimer = true },
                     onProfileClick = { if (userProfile.isLoggedIn) overlays.showProfile = true else overlays.showAuth = true },
-                    onOpenSettings = { overlays.showSettings = true }
+                    onOpenSettings = { overlays.showSettings = true },
+                    transparentTopBar = selectedTab == 0,
+                    showCompactTopBar = selectedTab == 0 && compactTopBarVisible,
+                    onCompactProfileClick = { if (userProfile.isLoggedIn) overlays.showProfile = true else overlays.showAuth = true },
+                    onCompactSettingsClick = { overlays.showSettings = true }
                 ) { padding ->
                     Box(Modifier.fillMaxSize().padding(padding)) {
                         if (!hasPermission) {
@@ -302,7 +308,8 @@ fun BeatBoxApp(
                                 onPlaylistsChange = { list ->
                                     playlists = list
                                     player.savePlaylists(list)
-                                }
+                                },
+                                onHomeCompactBarVisibleChange = { compactTopBarVisible = it }
                             )
                         }
                     }

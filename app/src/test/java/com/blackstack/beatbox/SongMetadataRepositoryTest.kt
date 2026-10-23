@@ -1,8 +1,11 @@
 package com.blackstack.beatbox
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
+import io.mockk.every
 import io.mockk.mockk
 
 /**
@@ -38,6 +41,17 @@ class SongMetadataRepositoryTest : StringSpec({
         )
 
         result.single().artworkPath shouldBe "/local/cover.jpg"
+    }
+
+    "ayar anahtarı BeatBoxSettings tercihlerinden okunur" {
+        val context = mockk<Context>()
+        val settings = mockk<SharedPreferences>()
+        every {
+            context.getSharedPreferences("BeatBoxSettings", Context.MODE_PRIVATE)
+        } returns settings
+        every { settings.getBoolean("auto_song_metadata", true) } returns false
+
+        SongMetadataRepository.isEnabled(context) shouldBe false
     }
 
     "eşleşmeyen şarkı değişmeden kalır" {

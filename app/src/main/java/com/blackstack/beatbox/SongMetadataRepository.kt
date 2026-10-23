@@ -31,6 +31,7 @@ import java.util.Collections
 object SongMetadataRepository {
 
     private const val PREFS_NAME = "song_metadata_cache_v1"
+    private const val SETTINGS_PREFS_NAME = "BeatBoxSettings"
     private const val PREF_AUTO = "auto_song_metadata"
     private const val MISS_TTL_MS = 3L * 24 * 60 * 60 * 1000
 
@@ -46,8 +47,10 @@ object SongMetadataRepository {
     private val artistInFlight = Collections.synchronizedSet(mutableSetOf<String>())
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** Ayar anahtarı uygulamanın genel tercihlerinde tutulur; önbellek ayrıdır. */
     fun isEnabled(context: Context): Boolean =
-        preferences(context).getBoolean(PREF_AUTO, true)
+        context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(PREF_AUTO, true)
 
     private fun preferences(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -72,7 +75,8 @@ object SongMetadataRepository {
      * Ana iş parçacığından çağrılmalıdır.
      */
     fun applyCached(context: Context, songs: List<AudioFile>): List<AudioFile> {
-        if (!isEnabled(context)) return songs
+        // Otomatik tamamlama kapatılsa bile daha önce çözülen bilgiler korunur;
+        // anahtar yalnızca yeni ağ aramalarını durdurur.
         val prefs = preferences(context)
         return songs.map { song ->
             val key = cacheKey(song)
