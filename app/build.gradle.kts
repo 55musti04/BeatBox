@@ -21,7 +21,7 @@ ksp {
 
 android {
     namespace = "com.blackstack.beatbox"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.blackstack.beatbox"

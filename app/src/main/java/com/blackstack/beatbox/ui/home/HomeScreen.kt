@@ -1,5 +1,6 @@
-package com.blackstack.beatbox
+package com.blackstack.beatbox.ui.home
 
+import com.blackstack.beatbox.*
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

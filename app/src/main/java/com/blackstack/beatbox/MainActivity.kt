@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.palette.graphics.Palette
+import com.blackstack.beatbox.ui.theme.BeatBoxTheme
 import android.graphics.Bitmap
 import android.util.Log
 import kotlinx.coroutines.*
@@ -187,7 +188,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         // Start sleep timer with proper lifecycle management
         startSleepTimer()
         
-        setContent { BeatBoxTheme() }
+        setContent { BeatBoxRoot() }
     }
 
     fun setKeepScreenOn(enabled: Boolean) {
@@ -270,7 +271,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     @Composable
-    private fun BeatBoxTheme() {
+    private fun BeatBoxRoot() {
         var visualizerLevel by remember { mutableFloatStateOf(0f) }
         var visualizerWaveform by remember { mutableStateOf(FloatArray(15) { 0f }) }
         
@@ -375,23 +376,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             }
         }
 
-        val baseScheme = getThemeColors(currentTheme)
-        val finalScheme = if (currentTheme == AppTheme.DYNAMIC) {
-            val safePrimary = adjustColorForContrast(dynamicPrimary)
-            val onPrimaryText = if (safePrimary.luminance() > 0.55f) Color.Black else Color.White
-            baseScheme.copy(
-                primary = safePrimary,
-                onPrimary = onPrimaryText,
-                primaryContainer = safePrimary.copy(alpha = 0.25f),
-                onPrimaryContainer = Color.White,
-                secondary = safePrimary.copy(alpha = 0.85f),
-                onSecondary = Color.White
-            )
-        } else {
-            baseScheme
-        }
-
-        MaterialTheme(colorScheme = finalScheme) {
+        BeatBoxTheme(
+            theme = currentTheme,
+            dynamicPrimary = if (currentTheme == AppTheme.DYNAMIC) dynamicPrimary else null
+        ) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 BeatBoxApp(this@MainActivity, currentTheme, s, lang, visualizerLevel, visualizerWaveform,
                     { currentTheme = it; prefs.edit { putString("app_theme", it.name) } },
@@ -561,15 +549,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    private fun adjustColorForContrast(color: Color): Color {
-        val hsv = FloatArray(3)
-        android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-        if (hsv[1] < 0.45f) hsv[1] = 0.65f
-        if (hsv[2] < 0.65f) hsv[2] = 0.85f
-        if (hsv[2] > 0.95f) hsv[2] = 0.95f
-        return Color(android.graphics.Color.HSVToColor(hsv))
-    }
-    
     override fun onDestroy() {
         super.onDestroy()
         // Cancel all coroutines

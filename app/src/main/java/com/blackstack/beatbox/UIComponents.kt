@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.palette.graphics.Palette
+import com.blackstack.beatbox.ui.theme.BeatBoxTheme
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.*
@@ -1492,7 +1493,7 @@ private fun gradientForSong(a: AudioFile, ctx: Context): Brush {
 }
 
 @Composable fun DynamicThemePlayer(a: AudioFile, currentTheme: AppTheme, content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = getThemeColors(currentTheme)) { content() }
+    BeatBoxTheme(theme = currentTheme) { content() }
 }
 
 fun formatTime(ms: Long): String = String.format(Locale.getDefault(), "%02d:%02d", TimeUnit.MILLISECONDS.toMinutes(ms), TimeUnit.MILLISECONDS.toSeconds(ms) % 60)
@@ -1617,49 +1618,6 @@ fun loadAudioFilesAndFolders(ctx: Context, minSec: Int, selected: Set<String>): 
     
     android.util.Log.d("AudioLoader", "Loaded ${list.size} audio files from ${folders.size} folders")
     return Pair(list, folders.sorted())
-}
-
-fun getThemeColors(t: AppTheme): ColorScheme = when (t) {
-    AppTheme.DYNAMIC -> darkColorScheme(
-        primary = Color(0xFF00E5FF), onPrimary = Color.Black,
-        primaryContainer = Color(0xFF003840), onPrimaryContainer = Color(0xFF80F2FF),
-        secondary = Color(0xFF9C27B0), onSecondary = Color.White,
-        background = Color(0xFF0C0D15), onBackground = Color(0xFFFFFFFF),
-        surface = Color(0xFF141622), onSurface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFF1E2235), onSurfaceVariant = Color(0xFFD0D0D0)
-    )
-    AppTheme.AMOLED -> darkColorScheme(
-        primary = Color(0xFF00E5FF), onPrimary = Color.Black,
-        primaryContainer = Color(0xFF003840), onPrimaryContainer = Color(0xFF80F2FF),
-        secondary = Color(0xFFFF2E93), onSecondary = Color.White,
-        background = Color(0xFF000000), onBackground = Color(0xFFFFFFFF),
-        surface = Color(0xFF09090D), onSurface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFF14141A), onSurfaceVariant = Color(0xFFD0D0D0)
-    )
-    AppTheme.NEON_CYBER -> darkColorScheme(
-        primary = Color(0xFF00F5D4), onPrimary = Color.Black,
-        primaryContainer = Color(0xFF00473E), onPrimaryContainer = Color(0xFF99FCEF),
-        secondary = Color(0xFF7B2CBF), onSecondary = Color.White,
-        background = Color(0xFF180030), onBackground = Color(0xFFF8FAFC),
-        surface = Color(0xFF27004D), onSurface = Color(0xFFF8FAFC),
-        surfaceVariant = Color(0xFF3B0073), onSurfaceVariant = Color(0xFFE0AAFF)
-    )
-    AppTheme.ROSE_GOLD -> darkColorScheme(
-        primary = Color(0xFFF2CC8F), onPrimary = Color.Black,
-        primaryContainer = Color(0xFF473720), onPrimaryContainer = Color(0xFFFAF0CA),
-        secondary = Color(0xFFFF758F), onSecondary = Color.Black,
-        background = Color(0xFF21171C), onBackground = Color(0xFFF8FAFC),
-        surface = Color(0xFF33242B), onSurface = Color(0xFFF8FAFC),
-        surfaceVariant = Color(0xFF47333C), onSurfaceVariant = Color(0xFFF5D0E0)
-    )
-    else -> darkColorScheme( // DARK (Midnight)
-        primary = Color(0xFF9C27B0), onPrimary = Color.White,
-        primaryContainer = Color(0xFF3B004D), onPrimaryContainer = Color(0xFFF2C8FF),
-        secondary = Color(0xFF00E5FF), onSecondary = Color.Black,
-        background = Color(0xFF0C0A1A), onBackground = Color(0xFFF8FAFC),
-        surface = Color(0xFF171333), onSurface = Color(0xFFF8FAFC),
-        surfaceVariant = Color(0xFF241D4D), onSurfaceVariant = Color(0xFFE2D0FF)
-    )
 }
 
 /**

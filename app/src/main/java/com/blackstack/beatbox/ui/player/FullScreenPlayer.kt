@@ -1,5 +1,6 @@
-package com.blackstack.beatbox
+package com.blackstack.beatbox.ui.player
 
+import com.blackstack.beatbox.*
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager

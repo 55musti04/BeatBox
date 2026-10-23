@@ -2,25 +2,38 @@ package com.blackstack.beatbox.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BeatBoxDarkBackground = Color(0xFF0A0B10)
-val BeatBoxDarkSurface = Color(0xFF141622)
-val BeatBoxDarkSurfaceVariant = Color(0xFF1E2235)
-val BeatBoxPrimary = Color(0xFF9C27B0) // Rich Violet / Purple
-val BeatBoxSecondary = Color(0xFF00E5FF) // Electric Cyan
-val BeatBoxTertiary = Color(0xFFFF2E93) // Neon Pink
+// ---------------------------------------------------------------------------
+// Aurora Glass palette
+// ---------------------------------------------------------------------------
 
-val BeatBoxLightBackground = Color(0xFFF8F9FE)
-val BeatBoxLightSurface = Color(0xFFFFFFFF)
-val BeatBoxLightSurfaceVariant = Color(0xFFEEF0F8)
-val BeatBoxLightPrimary = Color(0xFF7B1FA2)
-val BeatBoxLightSecondary = Color(0xFF00ACC1)
-val BeatBoxLightTertiary = Color(0xFFC2185B)
+/** Ana tuval: neredeyse siyah, hafif mavi alt tonlu. */
+val AuroraBlack = Color(0xFF07080F)
+val AuroraSurface = Color(0xFF10121C)
+val AuroraSurfaceRaised = Color(0xFF161927)
+val AuroraSurfaceVariant = Color(0xFF1E2230)
 
-// Legacy compatibility
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val AuroraTextPrimary = Color(0xFFF7F8FC)
+val AuroraTextSecondary = Color(0xFFA7ADBE)
+val AuroraTextTertiary = Color(0xFF6B7185)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val AuroraCyan = Color(0xFF22D3EE)
+val AuroraViolet = Color(0xFFA855F7)
+val AuroraPink = Color(0xFFF472B6)
+val AuroraSuccess = Color(0xFF4ADE80)
+val AuroraDanger = Color(0xFFFB7185)
+
+/** Cam yüzeylerde kullanılan beyaz katman oranları. */
+const val GlassAlphaLow = 0.06f
+const val GlassAlphaMedium = 0.10f
+const val GlassAlphaHigh = 0.16f
+
+// ---------------------------------------------------------------------------
+// Legacy palettes (kept for the existing theme presets)
+// ---------------------------------------------------------------------------
+
+val BeatBoxDarkBackground = Color(0xFF0C0A1A)
+val BeatBoxDarkSurface = Color(0xFF171333)
+val BeatBoxDarkSurfaceVariant = Color(0xFF241D4D)
+val BeatBoxPrimary = Color(0xFF9C27B0)
+val BeatBoxSecondary = Color(0xFF00E5FF)
+val BeatBoxTertiary = Color(0xFFFF2E93)
