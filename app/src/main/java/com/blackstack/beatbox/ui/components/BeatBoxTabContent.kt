@@ -145,6 +145,20 @@ fun BeatBoxTabContent(
                     isPlaying = isPlaying,
                     favoriteIds = favoriteIds,
                     onFavClick = { a -> player.toggleFavorite(a.id); onFavoriteIdsChange(player.getFavorites()) },
+                    onAddFavorites = { songs ->
+                        val current = player.getFavorites()
+                        songs
+                            .filterNot { current.contains(it.id.toString()) }
+                            .forEach { player.toggleFavorite(it.id) }
+                        onFavoriteIdsChange(player.getFavorites())
+                    },
+                    onAddToQueue = { songs ->
+                        if (songs.isNotEmpty()) {
+                            onCurrentPlaylistChange(
+                                (currentPlaylist + songs).distinctBy { it.id }
+                            )
+                        }
+                    },
                     onDeleteSong = { overlays.songToDelete = it; overlays.showDelete = true },
                     onSongClick = { a, list ->
                         if (currentPlaylist != list) onCurrentPlaylistChange(list)

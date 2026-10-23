@@ -71,7 +71,8 @@ data class AudioFile(
     val isOnline: Boolean = false,
     val artworkUrl: String? = null,
     val isExplicit: Boolean = false,
-    val albumArtist: String? = null
+    val albumArtist: String? = null,
+    val albumName: String? = null
 )
 
 fun String.parseTimeMs(): Long {
@@ -93,7 +94,14 @@ data class Playlist(
 )
 
 fun groupSongsByArtist(songs: List<AudioFile>, unknownLabel: String = "Unknown Artist"): Map<String, List<AudioFile>> {
-    return songs.groupBy { it.artist.trim().ifBlank { unknownLabel } }
+    return songs.groupBy { song ->
+        val artist = song.artist.trim()
+        if (artist.isBlank() || artist.equals("<unknown>", ignoreCase = true)) {
+            unknownLabel
+        } else {
+            artist
+        }
+    }
 }
 
 enum class EQPreset(val label: String, val labelTR: String, val desc: String, val descTR: String) {
@@ -578,6 +586,59 @@ class Strings(val lang: AppLanguage) {
             "en" to "All", "tr" to "Hepsi", "es" to "Todos", "fr" to "Tous",
             "de" to "Alle", "it" to "Tutti", "pt" to "Todos", "ru" to "Все",
             "ja" to "すべて", "zh" to "全部", "ar" to "الكل", "ko" to "전체"
+        ),
+        "albums" to mapOf(
+            "en" to "Albums", "tr" to "Albümler", "es" to "Álbumes", "fr" to "Albums",
+            "de" to "Alben", "it" to "Album", "pt" to "Álbuns", "ru" to "Альбомы",
+            "ja" to "アルバム", "zh" to "专辑", "ar" to "الألبومات", "ko" to "앨범"
+        ),
+        "artists" to mapOf(
+            "en" to "Artists", "tr" to "Sanatçılar", "es" to "Artistas", "fr" to "Artistes",
+            "de" to "Künstler", "it" to "Artisti", "pt" to "Artistas", "ru" to "Исполнители",
+            "ja" to "アーティスト", "zh" to "艺术家", "ar" to "الفنانون", "ko" to "아티스트"
+        ),
+        "unknown_album" to mapOf(
+            "en" to "Unknown album", "tr" to "Bilinmeyen albüm", "es" to "Álbum desconocido",
+            "fr" to "Album inconnu", "de" to "Unbekanntes Album", "it" to "Album sconosciuto",
+            "pt" to "Álbum desconhecido", "ru" to "Неизвестный альбом", "ja" to "不明なアルバム",
+            "zh" to "未知专辑", "ar" to "ألبوم غير معروف", "ko" to "알 수 없는 앨범"
+        ),
+        "selected" to mapOf(
+            "en" to "selected", "tr" to "seçili", "es" to "seleccionados", "fr" to "sélectionnés",
+            "de" to "ausgewählt", "it" to "selezionati", "pt" to "selecionados", "ru" to "выбрано",
+            "ja" to "選択中", "zh" to "已选择", "ar" to "محدد", "ko" to "선택됨"
+        ),
+        "add_to_queue" to mapOf(
+            "en" to "Add to queue", "tr" to "Kuyruğa ekle", "es" to "Añadir a la cola",
+            "fr" to "Ajouter à la file", "de" to "Zur Warteschlange", "it" to "Aggiungi alla coda",
+            "pt" to "Adicionar à fila", "ru" to "Добавить в очередь", "ja" to "キューに追加",
+            "zh" to "添加到队列", "ar" to "إضافة إلى قائمة الانتظار", "ko" to "대기열에 추가"
+        ),
+        "no_results" to mapOf(
+            "en" to "No results", "tr" to "Sonuç bulunamadı", "es" to "Sin resultados",
+            "fr" to "Aucun résultat", "de" to "Keine Ergebnisse", "it" to "Nessun risultato",
+            "pt" to "Nenhum resultado", "ru" to "Ничего не найдено", "ja" to "結果がありません",
+            "zh" to "无结果", "ar" to "لا توجد نتائج", "ko" to "결과 없음"
+        ),
+        "no_favorites" to mapOf(
+            "en" to "No favorite songs yet", "tr" to "Henüz favori şarkın yok",
+            "es" to "Aún no hay canciones favoritas", "fr" to "Pas encore de favoris",
+            "de" to "Noch keine Lieblingssongs", "it" to "Nessun brano preferito",
+            "pt" to "Nenhuma música favorita ainda", "ru" to "Пока нет любимых песен",
+            "ja" to "お気に入りの曲はまだありません", "zh" to "还没有收藏的歌曲",
+            "ar" to "لا توجد أغانٍ مفضلة بعد", "ko" to "아직 좋아하는 곡이 없습니다"
+        ),
+        "compact_view" to mapOf(
+            "en" to "Compact view", "tr" to "Kompakt görünüm", "es" to "Vista compacta",
+            "fr" to "Vue compacte", "de" to "Kompakte Ansicht", "it" to "Vista compatta",
+            "pt" to "Visualização compacta", "ru" to "Компактный вид", "ja" to "コンパクト表示",
+            "zh" to "紧凑视图", "ar" to "عرض مضغوط", "ko" to "간단히 보기"
+        ),
+        "comfortable_view" to mapOf(
+            "en" to "Comfortable view", "tr" to "Rahat görünüm", "es" to "Vista cómoda",
+            "fr" to "Vue confortable", "de" to "Komfortable Ansicht", "it" to "Vista comoda",
+            "pt" to "Visualização confortável", "ru" to "Удобный вид", "ja" to "ゆったり表示",
+            "zh" to "舒适视图", "ar" to "عرض مريح", "ko" to "편안히 보기"
         ),
         "delete_confirm" to mapOf(
             "en" to "will be deleted. Do you confirm?", "tr" to "silinecek. Onaylıyor musunuz?",

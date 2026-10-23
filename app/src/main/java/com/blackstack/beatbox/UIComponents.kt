@@ -1165,7 +1165,8 @@ fun loadAudioFilesAndFolders(ctx: Context, minSec: Int, selected: Set<String>): 
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.DATE_ADDED
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.ALBUM
         )
         
         // Add duration filter to SQL query to reduce processing
@@ -1199,7 +1200,10 @@ fun loadAudioFilesAndFolders(ctx: Context, minSec: Int, selected: Set<String>): 
                         uri = audioUri,
                         albumId = cursor.getLong(4),
                         folderName = folderName,
-                        dateAdded = cursor.getLong(6)
+                        dateAdded = cursor.getLong(6),
+                        albumName = cursor.getString(7)
+                            ?.trim()
+                            ?.takeIf { it.isNotBlank() && !it.equals("<unknown>", true) }
                     )
                     
                     list.add(audioFile)
