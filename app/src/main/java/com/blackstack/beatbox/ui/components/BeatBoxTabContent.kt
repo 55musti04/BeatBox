@@ -77,9 +77,6 @@ fun BeatBoxTabContent(
                     currentAudioId = currentAudio?.id,
                     currentAudio = currentAudio,
                     isPlaying = isPlaying,
-                    onPlaylistClick = { overlays.playlistDetail = it },
-                    onPlaylistDelete = { id -> onPlaylistsChange(playlists.filter { p -> p.id != id }) },
-                    onPlaylistEdit = { overlays.editPlaylist = it },
                     onPlaySong = { song ->
                         onCurrentPlaylistChange(allAudioList)
                         onCurrentAudioChange(song)
@@ -93,6 +90,28 @@ fun BeatBoxTabContent(
                             onCurrentAudioChange(shuffled.first())
                             player.playAudio(shuffled.first())
                             updateSongStats(prefs, shuffled.first())
+                        }
+                    },
+                    onPlayArtist = { songs ->
+                        if (songs.isNotEmpty()) {
+                            onCurrentPlaylistChange(songs)
+                            onCurrentAudioChange(songs.first())
+                            player.playAudio(songs.first())
+                            updateSongStats(prefs, songs.first())
+                        }
+                    },
+                    onOpenPlayer = { overlays.showPlayer = true },
+                    onPlayPause = {
+                        currentAudio?.let { audio ->
+                            if (isPlaying) player.pauseAudio(audio) else player.resumeAudio(audio)
+                        }
+                    },
+                    progress = {
+                        val duration = player.getDuration()
+                        if (duration > 0) {
+                            player.getCurrentPosition().toFloat() / duration
+                        } else {
+                            0f
                         }
                     },
                     strings = strings,

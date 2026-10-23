@@ -286,6 +286,54 @@ class Strings(val lang: AppLanguage) {
             "pt" to "Músicas reproduzidas recentemente", "ru" to "Недавно прослушанные треки", "ja" to "最近再生した曲",
             "zh" to "最近播放的曲目", "ar" to "المسارات التشغيل الأخيرة", "ko" to "최근 재생된 트랙"
         ),
+        "good_morning" to mapOf(
+            "en" to "Good morning", "tr" to "Günaydın", "es" to "Buenos días", "fr" to "Bonjour",
+            "de" to "Guten Morgen", "it" to "Buongiorno", "pt" to "Bom dia", "ru" to "Доброе утро",
+            "ja" to "おはようございます", "zh" to "早上好", "ar" to "صباح الخير", "ko" to "좋은 아침입니다"
+        ),
+        "good_afternoon" to mapOf(
+            "en" to "Good afternoon", "tr" to "İyi günler", "es" to "Buenas tardes", "fr" to "Bon après-midi",
+            "de" to "Guten Tag", "it" to "Buon pomeriggio", "pt" to "Boa tarde", "ru" to "Добрый день",
+            "ja" to "こんにちは", "zh" to "下午好", "ar" to "طاب يومك", "ko" to "좋은 오후입니다"
+        ),
+        "good_evening" to mapOf(
+            "en" to "Good evening", "tr" to "İyi akşamlar", "es" to "Buenas noches", "fr" to "Bonsoir",
+            "de" to "Guten Abend", "it" to "Buonasera", "pt" to "Boa noite", "ru" to "Добрый вечер",
+            "ja" to "こんばんは", "zh" to "晚上好", "ar" to "مساء الخير", "ko" to "좋은 저녁입니다"
+        ),
+        "home_subtitle" to mapOf(
+            "en" to "What do you want to listen to?", "tr" to "Bugün ne dinleyeceksin?", "es" to "¿Qué quieres escuchar?",
+            "fr" to "Que veux-tu écouter ?", "de" to "Was möchtest du hören?", "it" to "Cosa vuoi ascoltare?",
+            "pt" to "O que você quer ouvir?", "ru" to "Что хочешь послушать?", "ja" to "何を聴きたいですか？",
+            "zh" to "今天想听什么？", "ar" to "ماذا تريد أن تسمع؟", "ko" to "무엇을 듣고 싶나요?"
+        ),
+        "continue_listening" to mapOf(
+            "en" to "Continue listening", "tr" to "Kaldığın yerden", "es" to "Continuar escuchando",
+            "fr" to "Reprendre l'écoute", "de" to "Weiterhören", "it" to "Riprendi l'ascolto",
+            "pt" to "Continuar ouvindo", "ru" to "Продолжить прослушивание", "ja" to "続きを聴く",
+            "zh" to "继续收听", "ar" to "متابعة الاستماع", "ko" to "계속 듣기"
+        ),
+        "recently_played" to mapOf(
+            "en" to "Recently played", "tr" to "Son çalınanlar", "es" to "Reproducidas recientemente",
+            "fr" to "Récemment jouées", "de" to "Kürzlich gespielt", "it" to "Riprodotte di recente",
+            "pt" to "Reproduzidas recentemente", "ru" to "Недавно игравшие", "ja" to "最近再生した曲",
+            "zh" to "最近播放", "ar" to "تم تشغيلها مؤخرًا", "ko" to "최근 재생"
+        ),
+        "for_you" to mapOf(
+            "en" to "For you", "tr" to "Senin için", "es" to "Para ti", "fr" to "Pour toi",
+            "de" to "Für dich", "it" to "Per te", "pt" to "Para você", "ru" to "Для тебя",
+            "ja" to "あなたのために", "zh" to "为你推荐", "ar" to "لك", "ko" to "당신을 위해"
+        ),
+        "play" to mapOf(
+            "en" to "Play", "tr" to "Oynat", "es" to "Reproducir", "fr" to "Lecture",
+            "de" to "Abspielen", "it" to "Riproduci", "pt" to "Reproduzir", "ru" to "Воспроизвести",
+            "ja" to "再生", "zh" to "播放", "ar" to "تشغيل", "ko" to "재생"
+        ),
+        "pause" to mapOf(
+            "en" to "Pause", "tr" to "Duraklat", "es" to "Pausa", "fr" to "Pause",
+            "de" to "Pause", "it" to "Pausa", "pt" to "Pausar", "ru" to "Пауза",
+            "ja" to "一時停止", "zh" to "暂停", "ar" to "إيقاف مؤقت", "ko" to "일시정지"
+        ),
         "edit" to mapOf(
             "en" to "Edit", "tr" to "Düzenle", "es" to "Editar", "fr" to "Modifier",
             "de" to "Bearbeiten", "it" to "Modifica", "pt" to "Editar", "ru" to "Изменить",
