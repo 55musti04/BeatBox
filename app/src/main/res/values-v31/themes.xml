@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Android 12+ sistem splash'i. Arka plan Aurora tuvaliyle ayni; ikon
+        cihazin uygulama simgesi olarak kalir. Boylece uygulama acilirken
+        beyaz bir pencere görünmez.
+    -->
+    <style name="Theme.BeatBox" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/aurora_canvas</item>
+        <item name="android:windowSplashScreenBackground">@color/aurora_canvas</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/aurora_canvas</item>
+        <item name="android:colorAccent">@color/aurora_cyan</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

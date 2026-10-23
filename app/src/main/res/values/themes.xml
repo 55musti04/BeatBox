@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.BeatBox" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Koyu baslangic temasi: uygulama ilk kareyi cizene kadar sistemin
+        gosterdigi pencere Aurora tuvaliyle ayni renkte olur. Boylece beyaz
+        bir flash yerine dogrudan splash ekranina gecis yapilir.
+    -->
+    <style name="Theme.BeatBox" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/aurora_canvas</item>
+        <item name="android:colorAccent">@color/aurora_cyan</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

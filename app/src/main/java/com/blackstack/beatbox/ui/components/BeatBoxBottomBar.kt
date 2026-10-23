@@ -44,6 +44,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,6 +138,12 @@ private fun BeatBoxNavItemView(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(24.dp))
+            // Etiket ve secili durumu tek bir erisilebilirlik dugumunde topla;
+            // aksi halde TalkBack sekme adini veya "secili" bilgisini okuyamaz.
+            .semantics(mergeDescendants = true) {
+                contentDescription = item.label
+                this.selected = selected
+            }
             .selectable(
                 selected = selected,
                 onClick = {
@@ -177,7 +186,7 @@ private fun BeatBoxNavItemView(
             ) { isSelected ->
                 Icon(
                     imageVector = if (isSelected) item.selectedIcon else item.icon,
-                    contentDescription = item.label,
+                    contentDescription = null,
                     tint = if (isSelected) primary else idle,
                     modifier = Modifier
                         .size(23.dp)

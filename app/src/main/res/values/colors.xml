@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Aurora Glass tuvali; sistem splash'i ile Compose arka plani ayni renkte baslar. -->
+    <color name="aurora_canvas">#FF07080F</color>
+    <color name="aurora_cyan">#FF22D3EE</color>
 </resources>

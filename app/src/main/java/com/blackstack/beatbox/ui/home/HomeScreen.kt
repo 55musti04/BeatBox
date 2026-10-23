@@ -297,84 +297,86 @@ fun HomeScreen(
             }
         }
 
-        // 4. Recently Added Section Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.NewReleases, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = strings.get("recently_added"),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-
-        items(recentlyAdded) { song ->
-            val isCurrent = song.id == currentAudioId
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPlaySong(song) }
-                    .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = if (isCurrent)
-                    MaterialTheme.colorScheme.primaryContainer.copy(0.4f)
-                else
-                    MaterialTheme.colorScheme.surfaceVariant.copy(0.3f),
-                shadowElevation = if (isCurrent) 4.dp else 2.dp
-            ) {
+        if (recentlyAdded.isNotEmpty()) {
+            // 4. Recently Added Section Header
+            item {
                 Row(
-                    Modifier.padding(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box {
-                        AlbumArtImage(song, Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)), isHQ = true)
-                        if (isCurrent && isPlaying) {
-                            Box(
-                                Modifier
-                                    .size(56.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.Black.copy(alpha = 0.5f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                MusicVisualizer(true, visualizerLevel, visualizerWaveform, Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.NewReleases, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = strings.get("recently_added"),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            items(recentlyAdded) { song ->
+                val isCurrent = song.id == currentAudioId
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPlaySong(song) }
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isCurrent)
+                        MaterialTheme.colorScheme.primaryContainer.copy(0.4f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(0.3f),
+                    shadowElevation = if (isCurrent) 4.dp else 2.dp
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box {
+                            AlbumArtImage(song, Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)), isHQ = true)
+                            if (isCurrent && isPlaying) {
+                                Box(
+                                    Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color.Black.copy(alpha = 0.5f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    MusicVisualizer(true, visualizerLevel, visualizerWaveform, Modifier.height(16.dp))
+                                }
                             }
                         }
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = song.artist,
-                            fontSize = 13.sp,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(0.7f) else Color.Gray,
-                            maxLines = 1
-                        )
-                    }
-                    if (isCurrent && isPlaying) {
-                        MusicVisualizer(isPlaying, visualizerLevel, visualizerWaveform, modifier = Modifier.height(28.dp).padding(end = 8.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = song.artist,
+                                fontSize = 13.sp,
+                                color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(0.7f) else Color.Gray,
+                                maxLines = 1
+                            )
+                        }
+                        if (isCurrent && isPlaying) {
+                            MusicVisualizer(isPlaying, visualizerLevel, visualizerWaveform, modifier = Modifier.height(28.dp).padding(end = 8.dp))
+                        }
                     }
                 }
             }

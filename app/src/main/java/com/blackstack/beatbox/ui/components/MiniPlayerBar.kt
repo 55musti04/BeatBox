@@ -1,13 +1,7 @@
 package com.blackstack.beatbox.ui.components
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +46,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.blackstack.beatbox.AlbumArtImage
 import com.blackstack.beatbox.AudioFile
 import com.blackstack.beatbox.ExplicitBadge
+import com.blackstack.beatbox.ui.theme.BeatBoxMotion
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -237,12 +234,20 @@ fun MiniPlayerBar(
                     )
                 }
 
+                val playing = isPlaying && enabled
+                val playLabel = if (playing) "Duraklat" else "Oynat"
+                val iconScale by animateFloatAsState(
+                    targetValue = if (playing) 1f else 0.88f,
+                    animationSpec = BeatBoxMotion.Snappy,
+                    label = "mini_player_play_scale"
+                )
+
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(
-                            if (enabled) {
+                            brush = if (enabled) {
                                 Brush.linearGradient(listOf(primary, secondary.copy(alpha = 0.92f)))
                             } else {
                                 Brush.linearGradient(
@@ -251,27 +256,25 @@ fun MiniPlayerBar(
                                         MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 )
-                            }
+                            },
+                            shape = CircleShape
                         )
+                        .semantics(mergeDescendants = true) { contentDescription = playLabel }
                         .clickable(enabled = enabled, onClick = onPlayPause),
                     contentAlignment = Alignment.Center
                 ) {
-                    AnimatedContent(
-                        targetState = isPlaying && enabled,
-                        transitionSpec = {
-                            (scaleIn(initialScale = 0.62f) + fadeIn(tween(120))) togetherWith
-                                (scaleOut(targetScale = 0.62f) + fadeOut(tween(90)))
-                        },
-                        label = "mini_player_play_pause"
-                    ) { playing ->
-                        Icon(
-                            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (playing) "Duraklat" else "Oynat",
-                            tint = if (enabled) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
-                            modifier = Modifier.size(25.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = if (enabled) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+                        modifier = Modifier
+                            .size(25.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            }
+                    )
                 }
 
                 IconButton(
