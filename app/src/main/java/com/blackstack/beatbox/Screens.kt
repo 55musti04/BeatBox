@@ -27,10 +27,13 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import com.blackstack.beatbox.ui.components.AuroraBackground
 import com.blackstack.beatbox.ui.components.BeatBoxOverlayState
 import com.blackstack.beatbox.ui.components.BeatBoxOverlays
 import com.blackstack.beatbox.ui.components.BeatBoxScaffold
+import com.blackstack.beatbox.ui.components.BeatBoxSkeleton
 import com.blackstack.beatbox.ui.components.BeatBoxTabContent
+import com.blackstack.beatbox.ui.components.SplashScreen
 import com.blackstack.beatbox.ui.components.nextSongInQueue
 import com.blackstack.beatbox.ui.components.previousSongInQueue
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +60,7 @@ fun BeatBoxApp(
     var showSplash by remember { mutableStateOf(true) }
     var showOnboarding by remember { mutableStateOf(prefs.getBoolean("first_launch", true)) }
 
-    if (showSplash) { SplashScreen { showSplash = false }; return }
+    if (showSplash) { SplashScreen(currentTheme) { showSplash = false }; return }
     var hasPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -208,7 +211,7 @@ fun BeatBoxApp(
     }
 
     Box(Modifier.fillMaxSize()) {
-        GradientBackground(currentTheme, Modifier.fillMaxSize()) {
+        AuroraBackground(currentTheme, Modifier.fillMaxSize()) {
             BeatBoxScaffold(
                 player = player,
                 strings = strings,
@@ -248,7 +251,7 @@ fun BeatBoxApp(
                             permLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
                     }
                 } else if (isLoading) {
-                    Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
+                    BeatBoxSkeleton(Modifier.fillMaxSize())
                 } else {
                     BeatBoxTabContent(
                         selectedTab = selectedTab,

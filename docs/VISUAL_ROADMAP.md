@@ -282,20 +282,24 @@ Kurallar:
 **Amaç:** Uygulamanın “ilk 5 saniyesi” ve genel iskeleti premium hissettirsin.
 
 İşler:
-- [ ] **Splash 1.2 s**: logo beat pulse, aurora bloom, progress line; cold start uzarsa determinate.
-- [ ] **AuroraBackground** bileşeni: albüm renginden 2 radial gradient + yavaş drift + grain.
-- [ ] **Alt navigasyon**: pill indicator, ikon morph, seçimde haptik; cam yüzey.
-- [ ] **Mini player**: yüzen pill, kapak, ilerleme hairline, play/pause morph, yukarı kaydırma ipucu.
-- [ ] **Sayfa geçişleri**: fade+slide yerine `AnimatedContent` + `SizeTransform`; sekme yönü korunur.
-- [ ] **Skeleton loading**: kütüphane ve ana sayfa için parıldayan iskelet.
-- [ ] **Edge-to-edge** + status/nav bar ikon renkleri tema ile uyumlu.
-- [ ] Reduced-motion temeli.
+- [x] **Splash 1.2 s**: logo beat pulse, aurora bloom, progress line; cold start uzarsa determinate.
+- [x] **AuroraBackground** bileşeni: albüm renginden 2 radial gradient + yavaş drift + grain.
+- [x] **Alt navigasyon**: pill indicator, ikon morph, seçimde haptik; cam yüzey.
+- [x] **Mini player**: yüzen pill, kapak, ilerleme hairline, play/pause morph, yukarı kaydırma ipucu.
+- [x] **Sayfa geçişleri**: fade+slide yerine `AnimatedContent` + `SizeTransform`; sekme yönü korunur.
+- [x] **Skeleton loading**: kütüphane ve ana sayfa için parıldayan iskelet.
+- [x] **Edge-to-edge** + status/nav bar ikon renkleri tema ile uyumlu.
+- [x] Reduced-motion temeli.
 
 **Kabul kriterleri:**
 - Soğuk açılış < 1.5 s (Pixel 6a referans).
 - Geçişlerde takılma yok; 60 fps (mid-range), 120 Hz’de akıcı.
 - Navigasyon durumu TalkBack ile okunuyor.
 - Mini player tüm sekmelerde aynı görünüyor.
+
+> Cihaz/emülatör bulunmadığı için soğuk açılış, 60 fps ve TalkBack
+> doğrulamaları henüz saha testi bekliyor. Kod tarafında splash 1.2 s'ye
+> sabitlendi; navigasyon `Role.Tab` + `selected` semantiği kullanıyor.
 
 ---
 

@@ -4,26 +4,16 @@ import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.sin
 
@@ -155,89 +145,4 @@ fun MusicVisualizer(
 ) {
     // Real-time audio visualizer with actual waveform data
     EnhancedRealTimeVisualizer(isPlaying, level, waveform, modifier)
-}
-
-@Composable
-fun ModernBottomNavigationItem(
-    selected: Boolean,
-    onClick: () -> Unit,
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.12f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "nav_icon_scale"
-    )
-
-    val iconColor by animateColorAsState(
-        targetValue = if (selected) primaryColor else unselectedColor,
-        animationSpec = tween(300),
-        label = "nav_icon_color"
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() }
-            .background(
-                if (selected) primaryColor.copy(alpha = 0.18f) else Color.Transparent,
-                RoundedCornerShape(22.dp)
-            )
-            .then(
-                if (selected) Modifier.border(
-                    width = 1.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            primaryColor.copy(alpha = 0.5f),
-                            primaryColor.copy(alpha = 0.2f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(22.dp)
-                ) else Modifier
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconColor,
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        scaleX = iconScale
-                        scaleY = iconScale
-                    }
-            )
-            AnimatedVisibility(
-                visible = selected,
-                enter = fadeIn(tween(250)) + expandHorizontally(tween(300)),
-                exit = fadeOut(tween(200)) + shrinkHorizontally(tween(250))
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = label,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = primaryColor,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
 }

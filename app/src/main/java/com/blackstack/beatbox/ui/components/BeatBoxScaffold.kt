@@ -25,11 +25,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -369,60 +372,46 @@ fun BeatBoxScaffold(
         ) {
             // Mini player bar above navigation
             if (!showPlayer) {
-                MiniPlayerBar(currentAudio, isPlaying, { if (currentAudio != null) onOpenPlayer() }, onPlayPause, onNext, onPrev)
+                MiniPlayerBar(
+                    audio = currentAudio,
+                    isPlaying = isPlaying,
+                    progress = {
+                        val duration = player.getDuration()
+                        if (duration > 0) {
+                            player.getCurrentPosition().toFloat() / duration
+                        } else {
+                            0f
+                        }
+                    },
+                    onClick = { if (currentAudio != null) onOpenPlayer() },
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    onPrev = onPrev,
+                    onSwipeUp = onOpenPlayer
+                )
             }
-            // Bottom Navigation Bar - Modern & Sweet Theme-Adaptive Design
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f),
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-                            )
-                        ),
-                        shape = RoundedCornerShape(32.dp)
+            // Bottom Navigation Bar - Aurora Glass
+            BeatBoxBottomBar(
+                selectedTab = selectedTab,
+                onTabSelected = onTabSelected,
+                items = listOf(
+                    BeatBoxNavItem(
+                        icon = Icons.Outlined.Home,
+                        selectedIcon = Icons.Rounded.Home,
+                        label = strings.get("home")
                     ),
-                shape = RoundedCornerShape(32.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
-                shadowElevation = 16.dp,
-                tonalElevation = 6.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ModernBottomNavigationItem(
-                        selected = selectedTab == 0,
-                        onClick = { onTabSelected(0) },
-                        icon = Icons.Rounded.Home,
-                        label = strings.get("home"),
-                        modifier = Modifier.weight(1f)
+                    BeatBoxNavItem(
+                        icon = Icons.AutoMirrored.Outlined.QueueMusic,
+                        selectedIcon = Icons.AutoMirrored.Rounded.QueueMusic,
+                        label = strings.get("playlists")
+                    ),
+                    BeatBoxNavItem(
+                        icon = Icons.Outlined.LibraryMusic,
+                        selectedIcon = Icons.Rounded.LibraryMusic,
+                        label = strings.get("library")
                     )
-                    ModernBottomNavigationItem(
-                        selected = selectedTab == 1,
-                        onClick = { onTabSelected(1) },
-                        icon = Icons.AutoMirrored.Rounded.QueueMusic,
-                        label = strings.get("playlists"),
-                        modifier = Modifier.weight(1f)
-                    )
-                    ModernBottomNavigationItem(
-                        selected = selectedTab == 2,
-                        onClick = { onTabSelected(2) },
-                        icon = Icons.Rounded.LibraryMusic,
-                        label = strings.get("library"),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+                )
+            )
         }
     },
         floatingActionButton = {

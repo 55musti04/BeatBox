@@ -1,12 +1,44 @@
 package com.blackstack.beatbox.ui.theme
 
+import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
+
+/**
+ * Sistem "animasyonları kaldır" ayarı. `true` iken sonsuz animasyonlar ve
+ * dekoratif hareketler durdurulur; içerik yine de okunabilir kalır.
+ */
+val LocalReducedMotion = staticCompositionLocalOf { false }
+
+/**
+ * Android'in animatör süre ölçeğini okuyarak reduced-motion tercihini döndürür.
+ *
+ * Değer uygulama açılışında okunur; ayar değişirse uygulamanın yeniden
+ * başlatılması beklenir. Bu, Faz 1 kapsamındaki hafif bir temeldir.
+ */
+@Composable
+fun rememberReducedMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        try {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) == 0f
+        } catch (_: Exception) {
+            false
+        }
+    }
+}
 
 /**
  * BeatBox hareket dili.

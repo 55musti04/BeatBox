@@ -9,18 +9,15 @@ import android.graphics.BitmapFactory
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.automirrored.rounded.*
@@ -29,7 +26,6 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -40,7 +36,6 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,38 +58,6 @@ internal object AlbumArtCache {
     val bitmapCache = com.blackstack.beatbox.bitmapCache
 }
 
-// Gradient Theme Support
-@Composable
-fun GradientBackground(
-    theme: AppTheme,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    // Cache gradient brush to avoid recreating on every recomposition
-    val gradientBrush = remember(theme) {
-        if (theme.isGradient && theme.gradientColors.isNotEmpty()) {
-            Brush.verticalGradient(
-                colors = theme.gradientColors,
-                startY = 0f,
-                endY = 3000f // Use fixed value instead of POSITIVE_INFINITY for better performance
-            )
-        } else null
-    }
-    
-    if (gradientBrush != null) {
-        Box(
-            modifier = modifier
-                .graphicsLayer { } // Hardware acceleration
-                .background(gradientBrush)
-        ) {
-            content()
-        }
-    } else {
-        Box(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
-            content()
-        }
-    }
-}
 
 // Explicit Content Badge
 @Composable
@@ -147,182 +110,6 @@ fun Modifier.fabShadow() = this.shadow(
     spotColor = Color.Black.copy(alpha = 0.15f)
 )
 
-@Composable
-fun SplashScreen(onFinish: () -> Unit) {
-    val scale = remember { Animatable(0.4f) }
-    val alpha = remember { Animatable(0f) }
-    val progress = remember { Animatable(0f) }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "splash_ambient_glow")
-    val pulseGlow by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.20f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_glow"
-    )
-
-    val rotateAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotate_angle"
-    )
-
-    LaunchedEffect(Unit) {
-        launch {
-            scale.animateTo(
-                1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            )
-        }
-        launch {
-            alpha.animateTo(1f, tween(500))
-        }
-        launch {
-            progress.animateTo(1f, tween(1700, easing = FastOutSlowInEasing))
-        }
-        delay(1900)
-        onFinish()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF06070D),
-                        Color(0xFF101428),
-                        Color(0xFF06070D)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        // Ambient Rotated Light Aura
-        Box(
-            modifier = Modifier
-                .size(320.dp)
-                .graphicsLayer {
-                    scaleX = pulseGlow
-                    scaleY = pulseGlow
-                    rotationZ = rotateAngle
-                }
-                .background(
-                    Brush.sweepGradient(
-                        listOf(
-                            Color(0xFF9C27B0).copy(alpha = 0.35f),
-                            Color(0xFF00E5FF).copy(alpha = 0.25f),
-                            Color(0xFFFF2E93).copy(alpha = 0.35f),
-                            Color(0xFF9C27B0).copy(alpha = 0.35f)
-                        )
-                    ),
-                    CircleShape
-                )
-                .blur(90.dp)
-        )
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-                this.alpha = alpha.value
-            }
-        ) {
-            // Glassmorphic Glowing Logo Card
-            Surface(
-                modifier = Modifier
-                    .size(150.dp)
-                    .shadow(24.dp, RoundedCornerShape(36.dp)),
-                shape = RoundedCornerShape(36.dp),
-                color = Color.Black.copy(alpha = 0.45f),
-                border = BorderStroke(
-                    width = 2.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            Color(0xFF00E5FF),
-                            Color(0xFF9C27B0),
-                            Color(0xFFFF2E93)
-                        )
-                    )
-                )
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.beatbox_logo),
-                        contentDescription = "BeatBox Logo",
-                        modifier = Modifier
-                            .size(110.dp)
-                            .clip(RoundedCornerShape(26.dp))
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // App Name with Gradient Glow
-            Text(
-                text = "BeatBox",
-                fontSize = 46.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White,
-                letterSpacing = 3.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Tagline
-            Text(
-                text = "HİSSET • DİNLE • YAŞA",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF00E5FF).copy(alpha = 0.85f),
-                letterSpacing = 2.5.sp
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Precision Loading Line
-            Box(
-                modifier = Modifier
-                    .width(180.dp)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progress.value)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color(0xFF00E5FF),
-                                    Color(0xFF9C27B0),
-                                    Color(0xFFFF2E93)
-                                )
-                            ),
-                            RoundedCornerShape(2.dp)
-                        )
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1165,194 +952,6 @@ private fun formatDuration(millis: Long): String {
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
-@Composable fun MiniPlayerBar(
-    a: AudioFile?, 
-    isPlaying: Boolean, 
-    onClick: () -> Unit, 
-    onPlayPause: () -> Unit, 
-    onNext: () -> Unit, 
-    onPrev: () -> Unit
-) {
-    var offsetX by remember { mutableFloatStateOf(0f) }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(78.dp)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (a != null) {
-                            if (offsetX > 60f) {
-                                onPrev()
-                            } else if (offsetX < -60f) {
-                                onNext()
-                            }
-                        }
-                        offsetX = 0f
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount
-                    }
-                )
-            }
-            .clickable { onClick() }
-            .border(
-                width = 1.dp,
-                brush = Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(0.4f),
-                        MaterialTheme.colorScheme.onSurface.copy(0.08f)
-                    )
-                ),
-                shape = RoundedCornerShape(22.dp)
-            )
-            .shadow(12.dp, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 4.dp
-    ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val song = a
-            if (song != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Card(
-                        modifier = Modifier.size(54.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        elevation = CardDefaults.cardElevation(4.dp)
-                    ) {
-                        AlbumArtImage(song, Modifier.fillMaxSize(), isHQ = true)
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                song.title,
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            if (song.isExplicit) {
-                                Spacer(Modifier.width(6.dp))
-                                ExplicitBadge()
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            song.artist,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(0.68f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(0.15f), RoundedCornerShape(14.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "BeatBox",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "Müzik çalınmıyor",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(0.6f)
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            IconButton(
-                onClick = onPrev,
-                enabled = a != null,
-                modifier = Modifier
-                    .size(42.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(if (a != null) 0.6f else 0.2f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    Icons.Default.SkipPrevious,
-                    null,
-                    tint = if (a != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(0.3f),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (a != null) {
-                            Brush.radialGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.primary.copy(0.82f)
-                                )
-                            )
-                        } else {
-                            Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
-                        },
-                        CircleShape
-                    )
-                    .clickable(enabled = a != null, onClick = onPlayPause)
-                    .shadow(if (a != null) 6.dp else 0.dp, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    null,
-                    tint = if (a != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(0.3f),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            IconButton(
-                onClick = onNext,
-                enabled = a != null,
-                modifier = Modifier
-                    .size(42.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(if (a != null) 0.6f else 0.2f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    Icons.Default.SkipNext,
-                    null,
-                    tint = if (a != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(0.3f),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-    }
-}
 
 @Composable fun AlbumArtImage(a: AudioFile, modifier: Modifier = Modifier, isHQ: Boolean = false) {
     val ctx = LocalContext.current

@@ -4,6 +4,7 @@ import com.blackstack.beatbox.*
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -11,7 +12,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.blackstack.beatbox.ui.home.HomeScreen
 import com.blackstack.beatbox.ui.library.LibraryScreen
 import com.blackstack.beatbox.ui.playlists.PlaylistsScreen
@@ -48,9 +51,10 @@ fun BeatBoxTabContent(
 ) {
     AnimatedContent(
         targetState = selectedTab,
+        modifier = Modifier.fillMaxSize(),
         transitionSpec = {
             val direction = if (targetState > initialState) 1 else -1
-            val duration = 350
+            val duration = 320
             (slideInHorizontally(
                 initialOffsetX = { fullWidth -> fullWidth * direction },
                 animationSpec = tween(duration, easing = FastOutSlowInEasing)
@@ -58,7 +62,8 @@ fun BeatBoxTabContent(
                     (slideOutHorizontally(
                         targetOffsetX = { fullWidth -> -fullWidth * direction },
                         animationSpec = tween(duration, easing = FastOutSlowInEasing)
-                    ) + fadeOut(animationSpec = tween(duration / 2)))
+                    ) + fadeOut(animationSpec = tween(duration / 2))) using
+                    SizeTransform(clip = false)
         },
         label = "tab_transition"
     ) { tab ->
